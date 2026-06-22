@@ -68,8 +68,8 @@ const commands = [
 
 // STATUS LOOP CONFIGURATION
 const statuses = [
-    "Undergoing Maintenance",
-    "Degraded Service",
+    "Made by Aidan",
+    
     
 ];
 
