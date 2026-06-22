@@ -1,9 +1,30 @@
-const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ApplicationCommandOptionType, Collection } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ApplicationCommandOptionType, Collection, ActivityType } = require('discord.js');
+const express = require('express');
 
-// 1. Reads your tokens from config.json
-const { TOKEN, CLIENT_ID } = require('./config.json');
+// 1. Keep-Alive Web Server
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-// 2. Create the bot client instance
+app.get('/', (req, res) => {
+    res.send('Aidan Bot Status & Commands are Online!');
+});
+
+app.listen(PORT, () => {
+    console.log(`Web server running on port ${PORT}`);
+});
+
+// 2. Reads tokens (fallback to process.env for Railway)
+let TOKEN, CLIENT_ID;
+try {
+  const config = require('./config.json');
+  TOKEN = config.TOKEN;
+  CLIENT_ID = config.CLIENT_ID;
+} catch (e) {
+  TOKEN = process.env.TOKEN;
+  CLIENT_ID = process.env.CLIENT_ID;
+}
+
+// 3. Create the bot client instance
 const client = new Client({ 
   intents: [
     GatewayIntentBits.Guilds,
@@ -11,10 +32,9 @@ const client = new Client({
   ] 
 });
 
-// Create a collection to track cooldowns
 const cooldowns = new Collection();
 
-// 3. Define the commands structure
+// 4. Define the commands structure
 const commands = [
   {
     name: 'ping',
@@ -46,10 +66,32 @@ const commands = [
   }
 ];
 
-// 4. Register slash commands with Discord on startup
+// STATUS LOOP CONFIGURATION
+const statuses = [
+    "Made by Aidan",
+    "Watching Aidansville"
+];
+
+// 5. Register slash commands & start status loop on startup
 client.once('ready', async () => {
   console.log(`🤖 Logged in as ${client.user.tag}!`);
   
+  // --- STATUS LOOP START ---
+  let statusIndex = 0;
+  client.user.setPresence({
+      activities: [{ name: statuses[statusIndex], type: ActivityType.Custom }],
+      status: 'online',
+  });
+
+  setInterval(() => {
+      statusIndex = (statusIndex + 1) % statuses.length;
+      client.user.setPresence({
+          activities: [{ name: statuses[statusIndex], type: ActivityType.Custom }],
+          status: 'online',
+      });
+  }, 15000); 
+  // --- STATUS LOOP END ---
+
   const rest = new REST({ version: '10' }).setToken(TOKEN);
   try {
     console.log('Started refreshing application (/) commands.');
@@ -60,7 +102,7 @@ client.once('ready', async () => {
   }
 });
 
-// --- UPDATED WELCOMER SYSTEM (EMBED VERSION) ---
+// --- WELCOMER SYSTEM ---
 client.on('guildMemberAdd', async member => {
   const WELCOME_CHANNEL_ID = '1397011380162531348';
   const channel = member.guild.channels.cache.get(WELCOME_CHANNEL_ID);
@@ -74,11 +116,10 @@ client.on('guildMemberAdd', async member => {
   }
 });
 
-// 5. Handle interactions
+// 6. Handle interactions
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
-  // --- COOLDOWN SYSTEM START ---
   const { commandName, user } = interaction;
   const COOLDOWN_AMOUNT = 30000; 
   
@@ -105,7 +146,6 @@ client.on('interactionCreate', async interaction => {
 
   timestamps.set(user.id, now);
   setTimeout(() => timestamps.delete(user.id), COOLDOWN_AMOUNT);
-  // --- COOLDOWN SYSTEM END ---
 
   // PING HANDLER
   if (interaction.commandName === 'ping') {
@@ -143,5 +183,5 @@ client.on('interactionCreate', async interaction => {
   }
 });
 
-// 6. Log into Discord
+// 7. Log into Discord
 client.login(TOKEN);
