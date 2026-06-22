@@ -68,8 +68,9 @@ const commands = [
 
 // STATUS LOOP CONFIGURATION
 const statuses = [
-    "Made by Aidan",
-    "Watching Aidansville"
+    "Undergoing Maintenance",
+    "Degraded Service",
+    
 ];
 
 // 5. Register slash commands & start status loop on startup
