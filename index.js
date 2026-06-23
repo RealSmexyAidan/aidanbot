@@ -213,6 +213,25 @@ client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
   const { commandName, user } = interaction;
 
+  // --- STANDARD INTERACTION COOLDOWN ENFORCEMENT ---
+  const COOLDOWN_AMOUNT = 30000; 
+  if (!cooldowns.has(commandName)) cooldowns.set(commandName, new Collection());
+  const now = Date.now();
+  const timestamps = cooldowns.get(commandName);
+  
+  if (timestamps.has(user.id)) {
+    const expirationTime = timestamps.get(user.id) + COOLDOWN_AMOUNT;
+    if (now < expirationTime) {
+      const timeLeft = ((expirationTime - now) / 1000).toFixed(1);
+      const cooldownEmbed = new EmbedBuilder()
+        .setDescription(`Please wait **${timeLeft}s** before using \`/${commandName}\` again.`)
+        .setColor('#2b2d31');
+      return interaction.reply({ embeds: [cooldownEmbed], ephemeral: true });
+    }
+  }
+  timestamps.set(user.id, now);
+  setTimeout(() => timestamps.delete(user.id), COOLDOWN_AMOUNT);
+
   // --- INDIVIDUAL LEVEL COMMAND ---
   if (commandName === 'level') {
     const targetUser = interaction.options.getUser('user') || user;
@@ -267,26 +286,7 @@ client.on('interactionCreate', async interaction => {
     return await interaction.reply({ embeds: [lbEmbed] });
   }
 
-  // --- STANDARD INTERACTION COOLDOWN ENFORCEMENT ---
-  const COOLDOWN_AMOUNT = 30000; 
-  if (!cooldowns.has(commandName)) cooldowns.set(commandName, new Collection());
-  const now = Date.now();
-  const timestamps = cooldowns.get(commandName);
-  
-  if (timestamps.has(user.id)) {
-    const expirationTime = timestamps.get(user.id) + COOLDOWN_AMOUNT;
-    if (now < expirationTime) {
-      const timeLeft = ((expirationTime - now) / 1000).toFixed(1);
-      const cooldownEmbed = new EmbedBuilder()
-        .setDescription(`Please wait **${timeLeft}s** before using \`/${commandName}\` again.`)
-        .setColor('#2b2d31');
-      return interaction.reply({ embeds: [cooldownEmbed], ephemeral: true });
-    }
-  }
-  timestamps.set(user.id, now);
-  setTimeout(() => timestamps.delete(user.id), COOLDOWN_AMOUNT);
-
-  // --- COIN FLIP COMMAND (Now properly respects cooldowns) ---
+  // --- COIN FLIP COMMAND ---
   if (commandName === 'coinflip') {
     const outcomes = ['Heads', 'Tails'];
     const result = outcomes[Math.floor(Math.random() * outcomes.length)];
@@ -328,3 +328,4 @@ client.on('interactionCreate', async interaction => {
 });
 
 client.login(TOKEN);
+// Aidan
