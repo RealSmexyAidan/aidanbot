@@ -101,7 +101,7 @@ client.once('ready', async () => {
   }, 15000); 
 
   // --- AUTOMATED SERVER STATS CHANNEL TRACKER ---
-  const STATS_CHANNEL_ID = 'YOUR_VOICE_CHANNEL_ID_HERE'; 
+  const STATS_CHANNEL_ID = '1444216285964800093'; 
   
   const updateStats = async () => {
     try {
