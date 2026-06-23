@@ -96,7 +96,7 @@ client.on('interactionCreate', async interaction => {
 
   // --- COIN FLIP COMMAND ---
   if (commandName === 'coinflip') {
-    const outcomes = ['Heads 🪙', 'Tails 🪙'];
+    const outcomes = ['Heads', 'Tails'];
     const result = outcomes[Math.floor(Math.random() * outcomes.length)];
     
     const coinEmbed = new EmbedBuilder()
