@@ -6,7 +6,7 @@ const path = require('path');
 // 1. Keep-Alive Web Server for Railway
 const app = express();
 const PORT = process.env.PORT || 3000;
-app.get('/', (req, res) => res.send('Aidan Bot Status, Commands, and Levels are Online!'));
+app.get('/', (req, res) => res.send('Aidan Bot Status, Commands, Levels, and Stats are Online!'));
 app.listen(PORT, () => console.log(`Web server running on port ${PORT}`));
 
 // 2. Read Tokens / Credentials
@@ -100,6 +100,26 @@ client.once('ready', async () => {
       client.user.setPresence({ activities: [{ name: statuses[statusIndex], type: ActivityType.Custom }], status: 'online' });
   }, 15000); 
 
+  // --- AUTOMATED SERVER STATS CHANNEL TRACKER ---
+  const STATS_CHANNEL_ID = '1444216285964800093'; 
+  
+  const updateStats = async () => {
+    try {
+      const channel = await client.channels.fetch(STATS_CHANNEL_ID);
+      if (channel && channel.guild) {
+        const totalMembers = channel.guild.memberCount;
+        await channel.setName(`👥│ ${totalMembers} citizens`);
+        console.log(`📊 Updated server stats counter to: ${totalMembers} citizens`);
+      }
+    } catch (error) {
+      console.error("Failed to update stats channel name:", error);
+    }
+  };
+
+  // Run right away on boot, then loop every 12 minutes to respect Discord's rate limits
+  updateStats();
+  setInterval(updateStats, 720000);
+
   // Register Global Application Commands
   const rest = new REST({ version: '10' }).setToken(TOKEN);
   try {
@@ -158,7 +178,7 @@ client.on('messageCreate', async message => {
         const role = message.guild.roles.cache.get('1505615177972846682'); 
         if (role && !member.roles.cache.has(role.id)) await member.roles.add(role);
       } else if (newLevel >= 25) {
-        const role = message.guild.roles.cache.get('1505615327873073276'); 
+        const role = message.guild.roles.cache.get('1505613327873073276'); 
         if (role && !member.roles.cache.has(role.id)) await member.roles.add(role);
       } else if (newLevel >= 10) {
         const role = message.guild.roles.cache.get('1505614729651949771'); 
