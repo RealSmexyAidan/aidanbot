@@ -74,10 +74,10 @@ const commands = [
     options: [{ name: 'message', type: ApplicationCommandOptionType.String, description: 'The text you want Aidan Bot to repeat', required: true }]
   },
   { name: 'coinflip', description: 'Flip a coin' },
-  { name: 'leaderboard', description: 'Display the Aidansville Level Leaderboard' },
+  { name: 'leaderboard', description: 'Display the Aidansville level leaderboard' },
   {
     name: 'level',
-    description: 'Check your current level and card progress',
+    description: 'Check your current level',
     options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'Check another member\'s level', required: false }]
   }
 ];
