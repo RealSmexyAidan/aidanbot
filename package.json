@@ -1,19 +1,16 @@
 {
-  "name": "aidanbot",
+  "name": "aidan-bot",
   "version": "1.0.0",
-  "description": "",
+  "description": "Discord Bot for Aidansville",
   "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "type": "commonjs",
+  "scripts": {
+    "start": "node index.js"
+  },
   "dependencies": {
-    "discord.js": "^14.26.4",
-    "express": "^5.2.1",
-    "fs-extra": "^11.3.5"
-  "@napi-rs/canvas": "^0.1.0"
-}
+    "discord.js": "^14.16.3",
+    "express": "^4.19.2",
+    "fs-extra": "^11.2.0",
+    "@napi-rs/canvas": "^0.1.5"
   }
+}
