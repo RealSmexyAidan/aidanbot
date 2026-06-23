@@ -40,15 +40,15 @@ function getDb() {
     // PRE-FILLED WITH YOUR EXACT LEADERBOARD VALUES!
     const initialData = {
       "708900648741109791": { xp: 1037, level: 26 }, // Aidan's ID
-      "1273551439096188988": { xp: 520, level: 20 },      // Replace with Lee's User ID
-      "1145994993706729512": { xp: 249, level: 10 },    // Replace with idkXD's User ID
-      "1429472238155071591": { xp: 79, level: 9 },       // Replace with BDub's User ID
-      "1013255001935708200": { xp: 313, level: 8 },     // Replace with Jimmy's User ID
-      "1181075917720780872": { xp: 101, level: 7 }, // Replace with Sebastian's User ID
-      "810194398721605723": { xp: 92, level: 6 },     // Replace with Walter's User ID
-      "1087546933679231086": { xp: 82, level: 1 },      // Replace with Fuego's User ID
-      "854900667265449994": { xp: 10, level: 1 },  // Replace with Manofmike's User ID
-      "705497311735840899": { xp: 14, level: 0 } // Replace with Anderdingus's User ID
+      "1273551439096188988": { xp: 520, level: 20 },      // Lee's User ID
+      "1145994993706729512": { xp: 249, level: 10 },    // idkXD's User ID
+      "1429472238155071591": { xp: 79, level: 9 },       // BDub's User ID
+      "1013255001935708200": { xp: 313, level: 8 },     // Jimmy's User ID
+      "1181075917720780872": { xp: 101, level: 7 }, // Sebastian's User ID
+      "810194398721605723": { xp: 92, level: 6 },     // Walter's User ID
+      "1087546933679231086": { xp: 82, level: 1 },      // Fuego's User ID
+      "854900667265449994": { xp: 10, level: 1 },  // Manofmike's User ID
+      "705497311735840899": { xp: 14, level: 0 } // Anderdingus's User ID
     };
     fs.writeFileSync(dbPath, JSON.stringify(initialData, null, 2));
     return initialData;
@@ -74,10 +74,10 @@ const commands = [
     options: [{ name: 'message', type: ApplicationCommandOptionType.String, description: 'The text you want Aidan Bot to repeat', required: true }]
   },
   { name: 'coinflip', description: 'Flip a coin' },
-  { name: 'leaderboard', description: 'Display the Aidansville level leaderboard' },
+  { name: 'leaderboard', description: 'Display the Aidansville Level Leaderboard' },
   {
     name: 'level',
-    description: 'Check your current level',
+    description: 'Check your current level and card progress',
     options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'Check another member\'s level', required: false }]
   }
 ];
@@ -150,18 +150,18 @@ client.on('messageCreate', async message => {
       message.channel.send({ embeds: [lvlUpEmbed] });
     }
 
-    // --- AUTOMATIC ROLE REWARDS ---
+    // --- AUTOMATIC ROLE REWARDS (USING ROLE IDs) ---
     try {
       const member = await message.guild.members.fetch(userId);
       
       if (newLevel >= 50) {
-        const role = message.guild.roles.cache.find(r => r.name === "Aidans Favorite");
+        const role = message.guild.roles.cache.get('1505615177972846682'); 
         if (role && !member.roles.cache.has(role.id)) await member.roles.add(role);
       } else if (newLevel >= 25) {
-        const role = message.guild.roles.cache.find(r => r.name === "Yap Central");
+        const role = message.guild.roles.cache.get('1505615327873073276'); 
         if (role && !member.roles.cache.has(role.id)) await member.roles.add(role);
       } else if (newLevel >= 10) {
-        const role = message.guild.roles.cache.find(r => r.name === "Chatterbox");
+        const role = message.guild.roles.cache.get('1505614729651949771'); 
         if (role && !member.roles.cache.has(role.id)) await member.roles.add(role);
       }
     } catch (roleError) {
