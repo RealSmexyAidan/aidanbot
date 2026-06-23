@@ -45,7 +45,7 @@ const commands = [
   },
   {
     name: 'coinflip',
-    description: 'Flip a coin!'
+    description: 'Flip a coin'
   }
 ];
 
