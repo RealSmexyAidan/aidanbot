@@ -2,7 +2,6 @@ const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ApplicationComman
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const { createCanvas, loadImage } = require('@napi-rs/canvas');
 
 // 1. Keep-Alive Web Server for Railway
 const app = express();
@@ -80,11 +79,6 @@ const commands = [
     name: 'level',
     description: 'Check your current level and card progress',
     options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'Check another member\'s level', required: false }]
-  },
-  {
-    name: 'quote',
-    description: 'Turn a message ID into a classic quote card graphic',
-    options: [{ name: 'id', type: ApplicationCommandOptionType.String, description: 'The ID of the message you want to quote', required: true }]
   }
 ];
 
@@ -107,7 +101,7 @@ client.once('ready', async () => {
   }, 15000); 
 
   // --- AUTOMATED SERVER STATS CHANNEL TRACKER ---
-  const STATS_CHANNEL_ID = '1444216285964800093'; 
+  const STATS_CHANNEL_ID = 'YOUR_VOICE_CHANNEL_ID_HERE'; 
   
   const updateStats = async () => {
     try {
@@ -184,7 +178,7 @@ client.on('messageCreate', async message => {
         const role = message.guild.roles.cache.get('1505615177972846682'); 
         if (role && !member.roles.cache.has(role.id)) await member.roles.add(role);
       } else if (newLevel >= 25) {
-        const role = message.guild.roles.cache.get('1505615327873073276'); 
+        const role = message.guild.roles.cache.get('1505613327873073276'); 
         if (role && !member.roles.cache.has(role.id)) await member.roles.add(role);
       } else if (newLevel >= 10) {
         const role = message.guild.roles.cache.get('1505614729651949771'); 
@@ -218,73 +212,6 @@ client.on('guildMemberAdd', async member => {
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
   const { commandName, user } = interaction;
-
-  // --- IMAGE QUOTE BY ID COMMAND ---
-  if (commandName === 'quote') {
-    await interaction.deferReply();
-    const messageId = interaction.options.getString('id');
-
-    try {
-      const targetMessage = await interaction.channel.messages.fetch(messageId);
-      const targetUser = targetMessage.author;
-
-      const canvas = createCanvas(800, 450);
-      const ctx = canvas.getContext('2d');
-
-      // Dark background fill
-      ctx.fillStyle = '#0f0f11';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // Load avatar to left side panel safely
-      const avatarUrl = targetUser.displayAvatarURL({ extension: 'png', size: 512 });
-      const avatarImg = await loadImage(avatarUrl);
-      ctx.drawImage(avatarImg, 0, 0, 350, 450);
-
-      // Linear transparency layout overlay
-      const gradient = ctx.createLinearGradient(150, 0, 380, 0);
-      gradient.addColorStop(0, 'rgba(15, 15, 17, 0)');
-      gradient.addColorStop(1, 'rgba(15, 15, 17, 1)');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, 400, 450);
-
-      // Formatting quote content elements (Using system Arial safely on Linux hosts)
-      ctx.fillStyle = '#ffffff';
-      ctx.textAlign = 'center';
-      ctx.font = '32px Arial';
-
-      const cleanText = targetMessage.content || "[Image/Embed]";
-      const words = cleanText.split(' ');
-      let line = '';
-      let y = 180;
-      
-      for (let n = 0; n < words.length; n++) {
-        let testLine = line + words[n] + ' ';
-        let metrics = ctx.measureText(testLine);
-        if (metrics.width > 380 && n > 0) {
-          ctx.fillText(line, 580, y);
-          line = words[n] + ' ';
-          y += 45;
-        } else {
-          line = testLine;
-        }
-      }
-      ctx.fillText(line, 580, y);
-
-      // Signature line layout
-      ctx.fillStyle = '#aaaaaa';
-      ctx.font = '24px Arial';
-      ctx.fillText(`- ${targetUser.username}`, 580, y + 60);
-
-      const buffer = canvas.toBuffer('image/png');
-      return await interaction.editReply({
-        files: [{ attachment: buffer, name: 'quote.png' }]
-      });
-
-    } catch (error) {
-      console.error("Error fetching message ID or drawing canvas:", error);
-      return await interaction.editReply({ content: "❌ Couldn't find a message with that ID in this channel." });
-    }
-  }
 
   // --- INDIVIDUAL LEVEL COMMAND ---
   if (commandName === 'level') {
@@ -402,4 +329,4 @@ client.on('interactionCreate', async interaction => {
 
 client.login(TOKEN);
 
-// Aidan
+//Aidan 
