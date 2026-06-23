@@ -178,7 +178,7 @@ client.on('messageCreate', async message => {
         const role = message.guild.roles.cache.get('1505615177972846682'); 
         if (role && !member.roles.cache.has(role.id)) await member.roles.add(role);
       } else if (newLevel >= 25) {
-        const role = message.guild.roles.cache.get('1505613327873073276'); 
+        const role = message.guild.roles.cache.get('1505615327873073276'); 
         if (role && !member.roles.cache.has(role.id)) await member.roles.add(role);
       } else if (newLevel >= 10) {
         const role = message.guild.roles.cache.get('1505614729651949771'); 
