@@ -45,7 +45,7 @@ const commands = [
   },
   {
     name: 'coinflip',
-    description: 'Flip a coin! Heads or Tails?'
+    description: 'Flip a coin!'
   }
 ];
 
@@ -100,7 +100,7 @@ client.on('interactionCreate', async interaction => {
     const result = outcomes[Math.floor(Math.random() * outcomes.length)];
     
     const coinEmbed = new EmbedBuilder()
-      .setDescription(`<@${interaction.user.id}> flipped a coin and got... **${result}**!`)
+      .setDescription(`<@${interaction.user.id}> flipped a coin and got... **${result}**`)
       .setColor('#2b2d31');
 
     return await interaction.reply({ embeds: [coinEmbed] });
