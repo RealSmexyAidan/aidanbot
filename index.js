@@ -211,7 +211,6 @@ client.on('interactionCreate', async interaction => {
     const lvlEmbed = new EmbedBuilder()
       .setAuthor({ name: targetUser.username, iconURL: targetUser.displayAvatarURL() })
       .setTitle('Progress Card')
-      .setDescription(`<@${targetUser.id}> is currently conquering the server tracking ranks!`)
       .addFields(
         { name: 'Rank', value: `#${rank}`, inline: true },
         { name: 'Level', value: `${userData.level}`, inline: true },
