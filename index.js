@@ -137,8 +137,8 @@ client.on('interactionCreate', async interaction => {
     await interaction.editReply({ embeds: [finalEmbed] });
   }
 
-  // --- DAP COMMAND ---
-  if (commandName === 'dap') {
+  // --- DAP UP COMMAND (Fixed Mismatch) ---
+  if (commandName === 'dapup') {
     const targetUser = interaction.options.getUser('user');
     const dapEmbed = new EmbedBuilder()
       .setDescription(`<@${interaction.user.id}> dapped up <@${targetUser.id}>`)
