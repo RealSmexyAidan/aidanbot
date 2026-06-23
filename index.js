@@ -267,19 +267,7 @@ client.on('interactionCreate', async interaction => {
     return await interaction.reply({ embeds: [lbEmbed] });
   }
 
-  // --- COIN FLIP COMMAND ---
-  if (commandName === 'coinflip') {
-    const outcomes = ['Heads', 'Tails'];
-    const result = outcomes[Math.floor(Math.random() * outcomes.length)];
-    
-    const coinEmbed = new EmbedBuilder()
-      .setDescription(`<@${interaction.user.id}> flipped a coin and got... **${result}**`)
-      .setColor('#2b2d31');
-
-    return await interaction.reply({ embeds: [coinEmbed] });
-  }
-
-  // Cooldown Setup for standard interactions
+  // --- STANDARD INTERACTION COOLDOWN ENFORCEMENT ---
   const COOLDOWN_AMOUNT = 30000; 
   if (!cooldowns.has(commandName)) cooldowns.set(commandName, new Collection());
   const now = Date.now();
@@ -297,6 +285,18 @@ client.on('interactionCreate', async interaction => {
   }
   timestamps.set(user.id, now);
   setTimeout(() => timestamps.delete(user.id), COOLDOWN_AMOUNT);
+
+  // --- COIN FLIP COMMAND (Now properly respects cooldowns) ---
+  if (commandName === 'coinflip') {
+    const outcomes = ['Heads', 'Tails'];
+    const result = outcomes[Math.floor(Math.random() * outcomes.length)];
+    
+    const coinEmbed = new EmbedBuilder()
+      .setDescription(`<@${interaction.user.id}> flipped a coin and got... **${result}**`)
+      .setColor('#2b2d31');
+
+    return await interaction.reply({ embeds: [coinEmbed] });
+  }
 
   // --- PING COMMAND ---
   if (commandName === 'ping') {
@@ -328,5 +328,3 @@ client.on('interactionCreate', async interaction => {
 });
 
 client.login(TOKEN);
-
-//Aidan 
