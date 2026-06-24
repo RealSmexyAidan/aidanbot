@@ -68,7 +68,8 @@ const REACTION_CHANNEL_ID = '1455482928103686410';
 
 const reactionRoles = {
   '📢': '1469584337895686237', 
-  '🤖': '1469584568578343045'
+  '🤖': '1469584568578343045',
+  '💬':'1456407903702351925'
 };
 
 function saveDb(data) {
@@ -93,7 +94,7 @@ const commands = [
   {
     name: 'level',
     description: 'Check your current level and card progress',
-    options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'Check another member\'s level', required: false }]
+    options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'Check another citizen\'s level', required: false }]
   }
 ];
 
