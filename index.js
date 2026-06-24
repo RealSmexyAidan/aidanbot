@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ApplicationCommandOptionType, Collection, ActivityType } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ApplicationCommandOptionType, Collection, ActivityType, Partials } = require('discord.js');
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -20,14 +20,20 @@ try {
   CLIENT_ID = process.env.CLIENT_ID;
 }
 
-// 3. Create Bot Client Instance
+// 3. Create Bot Client Instance (Updated for Reaction Roles!)
 const client = new Client({ 
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
-  ] 
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMessageReactions // Allows the bot to track reaction add/removes
+  ],
+  partials: [
+    Partials.Message, 
+    Partials.Channel, 
+    Partials.Reaction // Essential for detecting reactions on messages sent before the bot was online
+  ]
 });
 
 const cooldowns = new Collection();
@@ -55,6 +61,15 @@ function getDb() {
   }
   return JSON.parse(fs.readFileSync(dbPath, 'utf8'));
 }
+
+// --- REACTION ROLE CONFIGURATION ---
+const REACTION_MESSAGE_ID = '1500691229493694546'; 
+const REACTION_CHANNEL_ID = '1455482928103686410'; 
+
+const reactionRoles = {
+  '📢': '1469584337895686237', 
+  '🤖': '1469584568578343045'
+};
 
 function saveDb(data) {
   fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
@@ -116,7 +131,6 @@ client.once('ready', async () => {
     }
   };
 
-  // Run right away on boot, then loop every 12 minutes to respect Discord's rate limits
   updateStats();
   setInterval(updateStats, 720000);
 
@@ -143,11 +157,9 @@ client.on('messageCreate', async message => {
     db[userId] = { xp: 0, level: 0 };
   }
 
-  // Award a random amount of XP between 15 and 25
   const xpGained = Math.floor(Math.random() * 11) + 15;
   db[userId].xp += xpGained;
 
-  // Level formula curve (Level * 50 + 50)
   const xpNeeded = (db[userId].level * 50) + 50;
 
   if (db[userId].xp >= xpNeeded) {
@@ -156,7 +168,6 @@ client.on('messageCreate', async message => {
     
     const newLevel = db[userId].level;
 
-    // --- SEPARATE LEVEL UP CHANNEL LOGIC ---
     const LEVEL_UP_CHANNEL_ID = '1519015856837890088'; 
     const levelChannel = message.guild.channels.cache.get(LEVEL_UP_CHANNEL_ID);
 
@@ -170,7 +181,6 @@ client.on('messageCreate', async message => {
       message.channel.send({ embeds: [lvlUpEmbed] });
     }
 
-    // --- AUTOMATIC ROLE REWARDS (USING ROLE IDs) ---
     try {
       const member = await message.guild.members.fetch(userId);
       
@@ -191,7 +201,6 @@ client.on('messageCreate', async message => {
 
   saveDb(db);
 
-  // 5-second cooldown per user to prevent spamming for XP
   xpCooldowns.add(userId);
   setTimeout(() => xpCooldowns.delete(userId), 5000);
 });
@@ -237,11 +246,9 @@ client.on('interactionCreate', async interaction => {
     const targetUser = interaction.options.getUser('user') || user;
     const db = getDb();
     
-    // Fallback if target user isn't tracked yet
     const userData = db[targetUser.id] || { xp: 0, level: 0 };
     const xpNeeded = (userData.level * 50) + 50;
 
-    // Calculate leaderboard position rank
     const sorted = Object.entries(db)
       .map(([id, data]) => ({ id, ...data }))
       .sort((a, b) => b.level - a.level || b.xp - a.xp);
@@ -327,5 +334,66 @@ client.on('interactionCreate', async interaction => {
   }
 });
 
+// 9. Reaction Role Module - Give Role
+client.on('messageReactionAdd', async (reaction, user) => {
+  if (user.bot) return;
+  if (reaction.message.id !== REACTION_MESSAGE_ID) return;
+
+  if (reaction.partial) {
+    try {
+      await reaction.fetch();
+    } catch (error) {
+      console.error('Something went wrong when fetching the message:', error);
+      return;
+    }
+  }
+
+  const roleId = reactionRoles[reaction.emoji.name];
+  if (!roleId) return;
+
+  try {
+    const guild = reaction.message.guild;
+    const member = await guild.members.fetch(user.id);
+    const role = guild.roles.cache.get(roleId);
+    
+    if (role && !member.roles.cache.has(role.id)) {
+      await member.roles.add(role);
+      console.log(`Assigned role to ${user.tag}`);
+    }
+  } catch (error) {
+    console.error('Error adding reaction role:', error);
+  }
+});
+
+// 10. Reaction Role Module - Remove Role
+client.on('messageReactionRemove', async (reaction, user) => {
+  if (user.bot) return;
+  if (reaction.message.id !== REACTION_MESSAGE_ID) return;
+
+  if (reaction.partial) {
+    try {
+      await reaction.fetch();
+    } catch (error) {
+      console.error('Something went wrong when fetching the message:', error);
+      return;
+    }
+  }
+
+  const roleId = reactionRoles[reaction.emoji.name];
+  if (!roleId) return;
+
+  try {
+    const guild = reaction.message.guild;
+    const member = await guild.members.fetch(user.id);
+    const role = guild.roles.cache.get(roleId);
+    
+    if (role && member.roles.cache.has(role.id)) {
+      await member.roles.remove(role);
+      console.log(`Removed role from ${user.tag}`);
+    }
+  } catch (error) {
+    console.error('Error removing reaction role:', error);
+  }
+});
+
 client.login(TOKEN);
-// Aidan
