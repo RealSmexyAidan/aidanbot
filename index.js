@@ -2,10 +2,6 @@ const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ApplicationComman
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const play = require('play-dl');
-
-// Tell play-dl exactly where to find our static audio decoder binary
-play.config({ launchOptions: { ffmpegPath: require('ffmpeg-static') } });
 
 // 1. Keep-Alive Web Server for Railway
 const app = express();
@@ -24,20 +20,19 @@ try {
   CLIENT_ID = process.env.CLIENT_ID;
 }
 
-// 3. Create Bot Client Instance
+// 3. Create Bot Client Instance (Updated for Reaction Roles!)
 const client = new Client({ 
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMessageReactions,
-    GatewayIntentBits.GuildVoiceStates
+    GatewayIntentBits.GuildMessageReactions // Allows the bot to track reaction add/removes
   ],
   partials: [
     Partials.Message, 
     Partials.Channel, 
-    Partials.Reaction 
+    Partials.Reaction // Essential for detecting reactions on messages sent before the bot was online
   ]
 });
 
@@ -48,17 +43,18 @@ const dbPath = path.join(__dirname, 'levels.json');
 // Safe Database Functions
 function getDb() {
   if (!fs.existsSync(dbPath)) {
+    // PRE-FILLED WITH YOUR EXACT LEADERBOARD VALUES!
     const initialData = {
-      "708900648741109791": { xp: 1037, level: 26 }, 
-      "1273551439096188988": { xp: 520, level: 20 },      
-      "1145994993706729512": { xp: 249, level: 10 },    
-      "1429472238155071591": { xp: 79, level: 9 },       
-      "1013255001935708200": { xp: 313, level: 8 },     
-      "1181075917720780872": { xp: 101, level: 7 }, 
-      "810194398721605723": { xp: 92, level: 6 },     
-      "1087546933679231086": { xp: 82, level: 1 },      
-      "854900667265449994": { xp: 10, level: 1 },  
-      "705497311735840899": { xp: 14, level: 0 } 
+      "708900648741109791": { xp: 1037, level: 26 }, // Aidan's ID
+      "1273551439096188988": { xp: 520, level: 20 },      // Lee's User ID
+      "1145994993706729512": { xp: 249, level: 10 },    // idkXD's User ID
+      "1429472238155071591": { xp: 79, level: 9 },       // BDub's User ID
+      "1013255001935708200": { xp: 313, level: 8 },     // Jimmy's User ID
+      "1181075917720780872": { xp: 101, level: 7 }, // Sebastian's User ID
+      "810194398721605723": { xp: 92, level: 6 },     // Walter's User ID
+      "1087546933679231086": { xp: 82, level: 1 },      // Fuego's User ID
+      "854900667265449994": { xp: 10, level: 1 },  // Manofmike's User ID
+      "705497311735840899": { xp: 14, level: 0 } // Anderdingus's User ID
     };
     fs.writeFileSync(dbPath, JSON.stringify(initialData, null, 2));
     return initialData;
@@ -71,7 +67,7 @@ const REACTION_MESSAGE_ID = '1500691229493694546';
 const REACTION_CHANNEL_ID = '1455482928103686410'; 
 
 const reactionRoles = {
-  '📢': '1469584337895686237',
+  '📢': '1469584337895686237', 
   '🤖': '1469584568578343045',
   '\u{1F4AC}': '1456407903702351925'
 };
@@ -98,14 +94,8 @@ const commands = [
   {
     name: 'level',
     description: 'Check your current level and card progress',
-    options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'Check another member\'s level', required: false }]
-  },
-  {
-    name: 'play',
-    description: 'Make Aidan Bot join your VC and play music from a URL or YouTube link',
-    options: [{ name: 'url', type: ApplicationCommandOptionType.String, description: 'The link to the video or raw file stream', required: true }]
-  },
-  { name: 'stop', description: 'Stops the music and makes Aidan Bot leave the voice channel' }
+    options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'Check another citizen\'s level', required: false }]
+  }
 ];
 
 const statuses = ["Made by Aidan", "Watching Aidansville"];
@@ -113,8 +103,9 @@ const statuses = ["Made by Aidan", "Watching Aidansville"];
 // 5. Ready Event Handler
 client.once('ready', async () => {
   console.log(`🤖 Logged in as ${client.user.tag}!`);
-  getDb(); 
+  getDb(); // Initializes database file if it's missing
   
+  // Status Cycle Setup
   let statusIndex = 0;
   client.user.setPresence({
       activities: [{ name: statuses[statusIndex], type: ActivityType.Custom }],
@@ -147,9 +138,9 @@ client.once('ready', async () => {
   // Register Global Application Commands
   const rest = new REST({ version: '10' }).setToken(TOKEN);
   try {
-    console.log('🔄 Force updating application commands...');
+    console.log('Started refreshing application (/) commands.');
     await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
-    console.log('✅ Commands synced perfectly!');
+    console.log('Successfully reloaded application (/) commands.');
   } catch (error) {
     console.error(error);
   }
@@ -341,81 +332,6 @@ client.on('interactionCreate', async interaction => {
   if (commandName === 'say') {
     const userMessage = interaction.options.getString('message');
     await interaction.reply({ content: userMessage });
-  }
-
-  // --- PLAY MUSIC COMMAND (Optimized with direct stream parameters) ---
-  if (commandName === 'play') {
-    const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
-    
-    const voiceChannel = interaction.member.voice.channel;
-    if (!voiceChannel) {
-      return await interaction.reply({ content: 'You need to be in a voice channel first!', ephemeral: true });
-    }
-
-    const url = interaction.options.getString('url');
-    await interaction.deferReply();
-
-    try {
-      let stream;
-      let streamType;
-
-      if (play.yt_validate(url) === 'video') {
-        const videoInfo = await play.video_info(url, { timeout: 10000 });
-        stream = await play.stream_from_info(videoInfo, { quality: 0 }); 
-        streamType = stream.type;
-      } else {
-        stream = url;
-        streamType = null;
-      }
-
-      const connection = joinVoiceChannel({
-        channelId: voiceChannel.id,
-        guildId: interaction.guild.id,
-        adapterCreator: interaction.guild.voiceAdapterCreator,
-      });
-
-      const resource = createAudioResource(stream.stream || stream, {
-        inputType: streamType || undefined
-      });
-
-      const player = createAudioPlayer();
-      player.play(resource);
-      connection.subscribe(player);
-
-      if (!client.musicPlayers) client.musicPlayers = new Map();
-      client.musicPlayers.set(interaction.guild.id, { connection, player });
-
-      await interaction.editReply({ content: `🎶 Now playing your request in **${voiceChannel.name}**!` });
-
-      player.on(AudioPlayerStatus.Idle, () => {
-        connection.destroy();
-        client.musicPlayers.delete(interaction.guild.id);
-      });
-
-    } catch (error) {
-      console.error(error);
-      await interaction.editReply({ content: 'Failed to process the YouTube video or stream link. Make sure the link is public!' });
-    }
-  }
-
-  // --- STOP MUSIC COMMAND ---
-  if (commandName === 'stop') {
-    if (!client.musicPlayers || !client.musicPlayers.has(interaction.guild.id)) {
-      return await interaction.reply({ content: 'There is no music playing right now!', ephemeral: true });
-    }
-
-    const session = client.musicPlayers.get(interaction.guild.id);
-    
-    try {
-      session.player.stop();
-      session.connection.destroy();
-      client.musicPlayers.delete(interaction.guild.id);
-      
-      await interaction.reply({ content: '👋 Stopped the music and left the voice channel!' });
-    } catch (error) {
-      console.error(error);
-      await interaction.reply({ content: 'An error occurred while trying to disconnect.', ephemeral: true });
-    }
   }
 });
 
