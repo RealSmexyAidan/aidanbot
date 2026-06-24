@@ -478,6 +478,17 @@ client.on('messageReactionRemove', async (reaction, user) => {
   }
 });
 
-client.login(TOKEN);
+// Quick command sync cleanup
+client.on('ready', async () => {
+  try {
+    console.log('🔄 Force updating application commands...');
+    const rest = new REST({ version: '10' }).setToken(TOKEN);
+    await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
+    console.log('✅ Commands synced perfectly!');
+  } catch (err) {
+    console.error('Command sync error:', err);
+  }
+});
 
+client.login(TOKEN);
 // Aidan 2026
