@@ -346,12 +346,10 @@ client.on('interactionCreate', async interaction => {
         .setCustomId('lb_levels')
         .setLabel('Level Leaderboard')
         .setStyle(ButtonStyle.Primary)
-        .setEmoji('🏆'),
       new ButtonBuilder()
         .setCustomId('lb_daps')
         .setLabel('Dap Leaderboard')
         .setStyle(ButtonStyle.Success)
-        .setEmoji('🤝')
     );
 
     return await interaction.reply({ embeds: [lbEmbed], components: [row] });
@@ -381,22 +379,13 @@ client.on('interactionCreate', async interaction => {
     await interaction.editReply({ embeds: [finalEmbed] });
   }
 
-  // --- DAP UP COMMAND (Now updates counter!) ---
+  // --- DAP UP COMMAND ---
   if (commandName === 'dapup') {
     const targetUser = interaction.options.getUser('user');
     const db = getDb();
     const senderId = interaction.user.id;
 
-    if (!db[senderId]) {
-      db[senderId] = { xp: 0, level: 0, daps: 0 };
-    }
-
-    // Increment sender's dap stats
-    db[senderId].daps = (db[senderId].daps || 0) + 1;
-    saveDb(db);
-
     const dapEmbed = new EmbedBuilder()
-      .setDescription(`<@${senderId}> dapped up <@${targetUser.id}>\n\n*You have given a total of **${db[senderId].daps}** daps!*`)
       .setColor('#2b2d31')
       .setImage('https://media3.giphy.com/media/v1.Y2lkPTZjMDliOTUyeHJnbWZrZm5wOXpzY2x2aWF2b3U0OWloZ2FxcThrOWhja2IzM3NsbCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/zSt9sNWYqGQb6gKCak/giphy.gif');
     
