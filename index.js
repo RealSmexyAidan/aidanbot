@@ -92,6 +92,18 @@ const commands = [
     options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'Check another citizen\'s level', required: false }]
   },
   {
+    name: 'purge',
+    description: 'Bulk delete a specified number of messages',
+    options: [
+      {
+        name: 'amount',
+        type: ApplicationCommandOptionType.Integer,
+        description: 'The number of messages to delete (1-100)',
+        required: true
+      }
+    ]
+  },
+  {
     name: 'mod',
     description: 'Staff moderation tools',
     options: [
@@ -282,7 +294,7 @@ client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
   const { commandName, user } = interaction;
 
- // --- MODERATION PANEL COMMAND ---
+  // --- MODERATION PANEL COMMAND ---
   if (commandName === 'mod') {
     if (!interaction.member.permissions.has('ModerateMembers')) {
       return await interaction.reply({ 
@@ -294,7 +306,7 @@ client.on('interactionCreate', async interaction => {
     const subcommand = interaction.options.getSubcommand();
     const targetUser = interaction.options.getUser('user');
     const reason = interaction.options.getString('reason');
-    const LOG_CHANNEL_ID = '1396953023426727998'; // Replace with your preferred logging channel
+    const LOG_CHANNEL_ID = '1396953023426727998'; 
     const logChannel = interaction.guild.channels.cache.get(LOG_CHANNEL_ID);
 
     let targetMember;
@@ -338,7 +350,7 @@ client.on('interactionCreate', async interaction => {
       }
 
       try {
-        await targetUser.send(`You have been timed out in **${interaction.guild.name}** for **${duration} minutes**.\n**Reason:** ${reason}`);
+        await targetUser.send(`You have been timed out in **${interaction.guild.name}** for **${duration} minutes**.\n**Reason:** ${reason}\n\n*Appeal by messaging @realsmexyaidan*`);
       } catch (e) {
         console.log(`Could not DM user ${targetUser.tag}`);
       }
@@ -365,7 +377,7 @@ client.on('interactionCreate', async interaction => {
       }
 
       try {
-        await targetUser.send(` You have been banned from **${interaction.guild.name}**.\n**Reason:** ${reason}`);
+        await targetUser.send(`You have been banned from **${interaction.guild.name}**.\n**Reason:** ${reason}\n\n*Appeal by messaging @realsmexyaidan*`);
       } catch (e) {
         console.log(`Could not DM user ${targetUser.tag}`);
       }
@@ -383,6 +395,39 @@ client.on('interactionCreate', async interaction => {
 
       if (logChannel) logChannel.send({ embeds: [logEmbed] });
       return await interaction.editReply({ content: `Successfully banned ${targetUser.tag}.` });
+    }
+  }
+
+  // --- PURGE COMMAND ---
+  if (commandName === 'purge') {
+    if (!interaction.member.permissions.has('ManageMessages')) {
+      return await interaction.reply({ 
+        content: 'You do not have permission to use the purge command.', 
+        ephemeral: true 
+      });
+    }
+
+    const amount = interaction.options.getInteger('amount');
+
+    if (amount < 1 || amount > 100) {
+      return await interaction.reply({ 
+        content: 'Please provide an amount between 1 and 100.', 
+        ephemeral: true 
+      });
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+      const deleted = await interaction.channel.bulkDelete(amount, true);
+      return await interaction.editReply({ 
+        content: `Successfully cleared \`${deleted.size}\` messages from this channel.` 
+      });
+    } catch (error) {
+      console.error('Error purging messages:', error);
+      return await interaction.editReply({ 
+        content: 'There was an error trying to purge messages in this channel. (Note: Messages older than 14 days cannot be bulk deleted)' 
+      });
     }
   }
 
