@@ -408,6 +408,8 @@ client.on('interactionCreate', async interaction => {
     }
 
     const amount = interaction.options.getInteger('amount');
+    const LOG_CHANNEL_ID = '1396953023426727998'; // Uses your set log channel ID
+    const logChannel = interaction.guild.channels.cache.get(LOG_CHANNEL_ID);
 
     if (amount < 1 || amount > 100) {
       return await interaction.reply({ 
@@ -420,13 +422,27 @@ client.on('interactionCreate', async interaction => {
 
     try {
       const deleted = await interaction.channel.bulkDelete(amount, true);
+      
+      // Send a clean log embed to the logging channel
+      const logEmbed = new EmbedBuilder()
+        .setTitle('Messages Purged')
+        .addFields(
+          { name: 'Channel', value: `<#${interaction.channel.id}>`, inline: true },
+          { name: 'Moderator', value: `<@${interaction.user.id}>`, inline: true },
+          { name: 'Amount Requested', value: `\`${amount}\``, inline: true },
+          { name: 'Actual Deleted', value: `\`${deleted.size}\``, inline: true }
+        )
+        .setColor('#2b2d31');
+
+      if (logChannel) logChannel.send({ embeds: [logEmbed] });
+
       return await interaction.editReply({ 
-        content: `Successfully cleared \`${deleted.size}\` messages from this channel.` 
+        content: `Successfully cleared \`${deleted.size}\` messages from this channel` 
       });
     } catch (error) {
       console.error('Error purging messages:', error);
       return await interaction.editReply({ 
-        content: 'There was an error trying to purge messages in this channel. (Note: Messages older than 14 days cannot be bulk deleted)' 
+        content: 'There was an error trying to purge messages in this channel (Messages older than 14 days cannot be purged)' 
       });
     }
   }
