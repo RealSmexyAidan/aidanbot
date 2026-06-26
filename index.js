@@ -90,6 +90,40 @@ const commands = [
     name: 'level',
     description: 'Check your current level and card progress',
     options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'Check another citizen\'s level', required: false }]
+  },
+  {
+    name: 'mod',
+    description: 'Staff moderation tools',
+    options: [
+      {
+        name: 'warn',
+        description: 'Warn a citizen',
+        type: ApplicationCommandOptionType.Subcommand,
+        options: [
+          { name: 'user', type: ApplicationCommandOptionType.User, description: 'The user to warn', required: true },
+          { name: 'reason', type: ApplicationCommandOptionType.String, description: 'Reason for the warning', required: true }
+        ]
+      },
+      {
+        name: 'timeout',
+        description: 'Timeout a citizen',
+        type: ApplicationCommandOptionType.Subcommand,
+        options: [
+          { name: 'user', type: ApplicationCommandOptionType.User, description: 'The user to timeout', required: true },
+          { name: 'duration', type: ApplicationCommandOptionType.Integer, description: 'Duration in minutes', required: true },
+          { name: 'reason', type: ApplicationCommandOptionType.String, description: 'Reason for the timeout', required: true }
+        ]
+      },
+      {
+        name: 'ban',
+        description: 'Ban a citizen',
+        type: ApplicationCommandOptionType.Subcommand,
+        options: [
+          { name: 'user', type: ApplicationCommandOptionType.User, description: 'The user to ban', required: true },
+          { name: 'reason', type: ApplicationCommandOptionType.String, description: 'Reason for the ban', required: true }
+        ]
+      }
+    ]
   }
 ];
 
@@ -248,7 +282,114 @@ client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
   const { commandName, user } = interaction;
 
-  // --- COOLDOWN SYSTEM ---
+  // --- MODERATION PANEL COMMAND ---
+  if (commandName === 'mod') {
+    if (!interaction.member.permissions.has('ModerateMembers')) {
+      return await interaction.reply({ 
+        content: 'You do not have permission to use moderation commands.', 
+        ephemeral: true 
+      });
+    }
+
+    const subcommand = interaction.options.getSubcommand();
+    const targetUser = interaction.options.getUser('user');
+    const reason = interaction.options.getString('reason');
+    const LOG_CHANNEL_ID = '1444216285964800093'; // Replace with preferred logging channel
+    const logChannel = interaction.guild.channels.cache.get(LOG_CHANNEL_ID);
+
+    let targetMember;
+    try {
+      targetMember = await interaction.guild.members.fetch(targetUser.id);
+    } catch (err) {
+      return await interaction.reply({ content: 'Could not find that user in this server.', ephemeral: true });
+    }
+
+    if (targetUser.id === interaction.user.id) {
+      return await interaction.reply({ content: 'You cannot moderate yourself silly', ephemeral: true });
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+
+    if (subcommand === 'warn') {
+      try {
+        await targetUser.send(`You have been warned in **${interaction.guild.name}**\n**Reason:** ${reason}`);
+      } catch (e) {
+        console.log(`Could not DM user ${targetUser.tag}`);
+      }
+
+      const logEmbed = new EmbedBuilder()
+        .setTitle('User Warned')
+        .addFields(
+          { name: 'Target', value: `<@${targetUser.id}> (${targetUser.tag})`, inline: true },
+          { name: 'Moderator', value: `<@${interaction.user.id}>`, inline: true },
+          { name: 'Reason', value: reason }
+        )
+        .setColor('#f1c40f')
+        .setTimestamp();
+
+      if (logChannel) logChannel.send({ embeds: [logEmbed] });
+      return await interaction.editReply({ content: `Successfully warned <@${targetUser.id}>.` });
+    }
+
+    if (subcommand === 'timeout') {
+      const duration = interaction.options.getInteger('duration');
+      
+      if (!targetMember.moderatable) {
+        return await interaction.editReply({ content: 'You cannot time out users that are higher than you' });
+      }
+
+      try {
+        await targetUser.send(`You have been timed out in **${interaction.guild.name}** for **${duration} minutes**.\n**Reason:** ${reason}`);
+      } catch (e) {
+        console.log(`Could not DM user ${targetUser.tag}`);
+      }
+
+      await targetMember.timeout(duration * 60 * 1000, reason);
+
+      const logEmbed = new EmbedBuilder()
+        .setTitle('User Timed Out')
+        .addFields(
+          { name: 'Target', value: `<@${targetUser.id}> (${targetUser.tag})`, inline: true },
+          { name: 'Moderator', value: `<@${interaction.user.id}>`, inline: true },
+          { name: 'Duration', value: `${duration} minutes`, inline: true },
+          { name: 'Reason', value: reason }
+        )
+        .setColor('#e67e22')
+        .setTimestamp();
+
+      if (logChannel) logChannel.send({ embeds: [logEmbed] });
+      return await interaction.editReply({ content: `Successfully timed out <@${targetUser.id}> for ${duration} minutes.` });
+    }
+
+    if (subcommand === 'ban') {
+      if (!targetMember.bannable) {
+        return await interaction.editReply({ content: 'You cannot time out users that are higher than you' });
+      }
+
+      try {
+        await targetUser.send(` You have been permanently banned from **${interaction.guild.name}**.\n**Reason:** ${reason}`);
+      } catch (e) {
+        console.log(`Could not DM user ${targetUser.tag}`);
+      }
+
+      await targetMember.ban({ reason: reason });
+
+      const logEmbed = new EmbedBuilder()
+        .setTitle('User Banned')
+        .addFields(
+          { name: 'Target', value: `${targetUser.tag} (${targetUser.id})`, inline: true },
+          { name: 'Moderator', value: `<@${interaction.user.id}>`, inline: true },
+          { name: 'Reason', value: reason }
+        )
+        .setColor('#e74c3c')
+        .setTimestamp();
+
+      if (logChannel) logChannel.send({ embeds: [logEmbed] });
+      return await interaction.editReply({ content: `Successfully banned ${targetUser.tag}.` });
+    }
+  }
+
+  // --- STANDARD INTERACTION COOLDOWN ENFORCEMENT ---
   const COOLDOWN_AMOUNT = 30000; 
   if (!cooldowns.has(commandName)) cooldowns.set(commandName, new Collection());
   const now = Date.now();
@@ -306,8 +447,8 @@ client.on('interactionCreate', async interaction => {
       .setDescription(description || 'No one has earned XP yet!')
       .setColor('#2b2d31')
       .setThumbnail(interaction.guild.iconURL());
-    
-const row = new ActionRowBuilder().addComponents(
+
+    const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('lb_levels')
         .setLabel('Level Leaderboard')
