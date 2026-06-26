@@ -1,7 +1,6 @@
 const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ApplicationCommandOptionType, Collection, ActivityType, Partials, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
+const { Pool } = require('pg');
 
 // 1. Keep-Alive Web Server for Railway
 const app = express();
@@ -10,14 +9,63 @@ app.get('/', (req, res) => res.send('Aidan Bot Status, Commands, Levels, and Sta
 app.listen(PORT, () => console.log(`Web server running on port ${PORT}`));
 
 // 2. Read Tokens / Credentials
-let TOKEN, CLIENT_ID;
+let TOKEN, CLIENT_ID, DATABASE_URL;
 try {
   const config = require('./config.json');
   TOKEN = config.TOKEN;
   CLIENT_ID = config.CLIENT_ID;
+  DATABASE_URL = config.DATABASE_URL;
 } catch (e) {
   TOKEN = process.env.TOKEN;
   CLIENT_ID = process.env.CLIENT_ID;
+  DATABASE_URL = process.env.DATABASE_URL; // Injected by Railway automatically
+}
+
+// Initialize Database Connection Pool
+const pool = new Pool({
+  connectionString: DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
+
+// Database Helper Functions
+async function initDb() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      user_id VARCHAR(20) PRIMARY KEY,
+      xp INTEGER DEFAULT 0,
+      level INTEGER DEFAULT 0,
+      daps INTEGER DEFAULT 0
+    )
+  `);
+
+  const countRes = await pool.query('SELECT COUNT(*) FROM users');
+  if (parseInt(countRes.rows[0].count) === 0) {
+    const initialData = [
+      ['708900648741109791', 1037, 26, 0],
+      ['1273551439096188988', 520, 20, 0],
+      ['1145994993706729512', 249, 10, 0],
+      ['1429472238155071591', 79, 9, 0],
+      ['1013255001935708200', 313, 8, 0],
+      ['1181075917720780872', 101, 7, 0],
+      ['810194398721605723', 92, 6, 0],
+      ['1087546933679231086', 82, 1, 0],
+      ['854900667265449994', 10, 1, 0],
+      ['705497311735840899', 14, 0, 0]
+    ];
+    for (const [id, xp, lvl, daps] of initialData) {
+      await pool.query('INSERT INTO users (user_id, xp, level, daps) VALUES ($1, $2, $3, $4)', [id, xp, lvl, daps]);
+    }
+    console.log('📊 Database initialized with seed leaderboard values.');
+  }
+}
+
+async function getUserData(userId) {
+  const res = await pool.query('SELECT * FROM users WHERE user_id = $1', [userId]);
+  if (res.rows.length === 0) {
+    const insertRes = await pool.query('INSERT INTO users (user_id, xp, level, daps) VALUES ($1, 0, 0, 0) RETURNING *', [userId]);
+    return insertRes.rows[0];
+  }
+  return res.rows[0];
 }
 
 // 3. Create Bot Client Instance
@@ -38,49 +86,6 @@ const client = new Client({
 
 const cooldowns = new Collection();
 const xpCooldowns = new Set();
-const dbPath = path.join(__dirname, 'levels.json');
-
-// Safe Database Functions
-function getDb() {
-  if (!fs.existsSync(dbPath)) {
-    const initialData = {
-      "708900648741109791": { xp: 1037, level: 26, daps: 0 }, 
-      "1273551439096188988": { xp: 520, level: 20, daps: 0 },      
-      "1145994993706729512": { xp: 249, level: 10, daps: 0 },    
-      "1429472238155071591": { xp: 79, level: 9, daps: 0 },       
-      "1013255001935708200": { xp: 313, level: 8, daps: 0 },     
-      "1181075917720780872": { xp: 101, level: 7, daps: 0 }, 
-      "810194398721605723": { xp: 92, level: 6, daps: 0 },     
-      "1087546933679231086": { xp: 82, level: 1, daps: 0 },      
-      "854900667265449994": { xp: 10, level: 1, daps: 0 },  
-      "705497311735840899": { xp: 14, level: 0, daps: 0 } 
-    };
-    fs.writeFileSync(dbPath, JSON.stringify(initialData, null, 2));
-    return initialData;
-  }
-  
-  const data = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
-  Object.keys(data).forEach(userId => {
-    if (data[userId].daps === undefined) {
-      data[userId].daps = 0;
-    }
-  });
-  return data;
-}
-
-// --- REACTION ROLE CONFIGURATION ---
-const REACTION_MESSAGE_ID = '1500691229493694546'; 
-const REACTION_CHANNEL_ID = '1455482928103686410'; 
-
-const reactionRoles = {
-  '📢': '1469584337895686237', 
-  '🤖': '1469584568578343045',
-  '\u{1F4AC}': '1456407903702351925'
-};
-
-function saveDb(data) {
-  fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
-}
 
 // 4. Global Slash Commands Array
 const commands = [
@@ -109,7 +114,7 @@ const statuses = ["Made by Aidan", "Watching Aidansville"];
 // 5. Ready Event Handler
 client.once('ready', async () => {
   console.log(`🤖 Logged in as ${client.user.tag}!`);
-  getDb(); 
+  await initDb(); 
   
   let statusIndex = 0;
   client.user.setPresence({
@@ -156,24 +161,19 @@ client.on('messageCreate', async message => {
   if (message.author.bot || !message.guild) return;
   if (xpCooldowns.has(message.author.id)) return;
 
-  const db = getDb();
   const userId = message.author.id;
-
-  if (!db[userId]) {
-    db[userId] = { xp: 0, level: 0, daps: 0 };
-  }
+  const userData = await getUserData(userId);
 
   const xpGained = Math.floor(Math.random() * 11) + 15;
-  db[userId].xp += xpGained;
+  let newXp = userData.xp + xpGained;
+  let newLevel = userData.level;
 
-  const xpNeeded = (db[userId].level * 50) + 50;
+  const xpNeeded = (newLevel * 50) + 50;
 
-  if (db[userId].xp >= xpNeeded) {
-    db[userId].xp -= xpNeeded;
-    db[userId].level += 1;
+  if (newXp >= xpNeeded) {
+    newXp -= xpNeeded;
+    newLevel += 1;
     
-    const newLevel = db[userId].level;
-
     const LEVEL_UP_CHANNEL_ID = '1519015856837890088'; 
     const levelChannel = message.guild.channels.cache.get(LEVEL_UP_CHANNEL_ID);
 
@@ -205,7 +205,7 @@ client.on('messageCreate', async message => {
     }
   }
 
-  saveDb(db);
+  await pool.query('UPDATE users SET xp = $1, level = $2 WHERE user_id = $3', [newXp, newLevel, userId]);
 
   xpCooldowns.add(userId);
   setTimeout(() => xpCooldowns.delete(userId), 5000);
@@ -225,36 +225,28 @@ client.on('guildMemberAdd', async member => {
 
 // 8. Interaction and Command Logic Handler
 client.on('interactionCreate', async interaction => {
-  // --- LEADERBOARD BUTTON INTERACTION PROCESSOR ---
   if (interaction.isButton()) {
     if (interaction.customId === 'lb_levels' || interaction.customId === 'lb_daps') {
-      const db = getDb();
       const medals = ['🥇', '🥈', '🥉'];
       let description = '';
       let title = '';
 
       if (interaction.customId === 'lb_levels') {
         title = 'Aidansville Level Leaderboard';
-        const sorted = Object.entries(db)
-          .map(([id, data]) => ({ id, ...data }))
-          .sort((a, b) => b.level - a.level || b.xp - a.xp)
-          .slice(0, 10);
+        const res = await pool.query('SELECT * FROM users ORDER BY level DESC, xp DESC LIMIT 10');
 
-        sorted.forEach((player, idx) => {
+        res.rows.forEach((player, idx) => {
           const prefix = idx < 3 ? `${medals[idx]} ` : `**${idx + 1}** `;
           const nextLvlXp = (player.level * 50) + 50;
-          description += `${prefix}<@${player.id}> • **Level ${player.level}** • ${player.xp}/${nextLvlXp} XP\n`;
+          description += `${prefix}<@${player.user_id}> • **Level ${player.level}** • ${player.xp}/${nextLvlXp} XP\n`;
         });
       } else {
         title = 'Aidansville Dap Leaderboard';
-        const sorted = Object.entries(db)
-          .map(([id, data]) => ({ id, ...data }))
-          .sort((a, b) => (b.daps || 0) - (a.daps || 0))
-          .slice(0, 10);
+        const res = await pool.query('SELECT * FROM users ORDER BY daps DESC LIMIT 10');
 
-        sorted.forEach((player, idx) => {
+        res.rows.forEach((player, idx) => {
           const prefix = idx < 3 ? `${medals[idx]} ` : `**${idx + 1}** `;
-          description += `${prefix}<@${player.id}> • **${player.daps || 0} daps** given\n`;
+          description += `${prefix}<@${player.user_id}> • **${player.daps} daps** given\n`;
         });
       }
 
@@ -271,7 +263,6 @@ client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
   const { commandName, user } = interaction;
 
-  // --- STANDARD INTERACTION COOLDOWN ENFORCEMENT ---
   const COOLDOWN_AMOUNT = 30000; 
   if (!cooldowns.has(commandName)) cooldowns.set(commandName, new Collection());
   const now = Date.now();
@@ -290,18 +281,13 @@ client.on('interactionCreate', async interaction => {
   timestamps.set(user.id, now);
   setTimeout(() => timestamps.delete(user.id), COOLDOWN_AMOUNT);
 
-  // --- INDIVIDUAL LEVEL COMMAND ---
   if (commandName === 'level') {
     const targetUser = interaction.options.getUser('user') || user;
-    const db = getDb();
-    
-    const userData = db[targetUser.id] || { xp: 0, level: 0, daps: 0 };
+    const userData = await getUserData(targetUser.id);
     const xpNeeded = (userData.level * 50) + 50;
 
-    const sorted = Object.entries(db)
-      .map(([id, data]) => ({ id, ...data }))
-      .sort((a, b) => b.level - a.level || b.xp - a.xp);
-    const rank = sorted.findIndex(p => p.id === targetUser.id) + 1 || 'Unranked';
+    const allUsers = await pool.query('SELECT user_id FROM users ORDER BY level DESC, xp DESC');
+    const rank = allUsers.rows.findIndex(p => p.user_id === targetUser.id) + 1 || 'Unranked';
 
     const lvlEmbed = new EmbedBuilder()
       .setAuthor({ name: targetUser.username, iconURL: targetUser.displayAvatarURL() })
@@ -316,21 +302,15 @@ client.on('interactionCreate', async interaction => {
     return await interaction.reply({ embeds: [lvlEmbed] });
   }
 
-  // --- LEADERBOARD COMMAND ---
   if (commandName === 'leaderboard') {
-    const db = getDb();
-    const sorted = Object.entries(db)
-      .map(([id, data]) => ({ id, ...data }))
-      .sort((a, b) => b.level - a.level || b.xp - a.xp)
-      .slice(0, 10);
-
+    const res = await pool.query('SELECT * FROM users ORDER BY level DESC, xp DESC LIMIT 10');
     let description = '';
     const medals = ['🥇', '🥈', '🥉'];
 
-    sorted.forEach((player, idx) => {
+    res.rows.forEach((player, idx) => {
       const prefix = idx < 3 ? `${medals[idx]} ` : `**${idx + 1}** `;
       const nextLvlXp = (player.level * 50) + 50;
-      description += `${prefix}<@${player.id}> • **Level ${player.level}** • ${player.xp}/${nextLvlXp} XP\n`;
+      description += `${prefix}<@${player.user_id}> • **Level ${player.level}** • ${player.xp}/${nextLvlXp} XP\n`;
     });
 
     const lbEmbed = new EmbedBuilder()
@@ -355,7 +335,6 @@ client.on('interactionCreate', async interaction => {
     return await interaction.reply({ embeds: [lbEmbed], components: [row] });
   }
 
-  // --- COIN FLIP COMMAND ---
   if (commandName === 'coinflip') {
     const outcomes = ['Heads', 'Tails'];
     const result = outcomes[Math.floor(Math.random() * outcomes.length)];
@@ -367,7 +346,6 @@ client.on('interactionCreate', async interaction => {
     return await interaction.reply({ embeds: [coinEmbed] });
   }
 
-  // --- PING COMMAND ---
   if (commandName === 'ping') {
     const initialEmbed = new EmbedBuilder().setDescription('Pinging Aidan Bot...').setColor('#2b2d31');
     const sent = await interaction.reply({ embeds: [initialEmbed], fetchReply: true });
@@ -379,19 +357,12 @@ client.on('interactionCreate', async interaction => {
     await interaction.editReply({ embeds: [finalEmbed] });
   }
 
-  // --- DAP UP COMMAND ---
   if (commandName === 'dapup') {
     const targetUser = interaction.options.getUser('user');
-    const db = getDb();
     const senderId = interaction.user.id;
 
-    if (!db[senderId]) {
-      db[senderId] = { xp: 0, level: 0, daps: 0 };
-    }
-
-    // Still count it in the database safely
-    db[senderId].daps = (db[senderId].daps || 0) + 1;
-    saveDb(db);
+    await getUserData(senderId);
+    await pool.query('UPDATE users SET daps = daps + 1 WHERE user_id = $1', [senderId]);
 
     const dapEmbed = new EmbedBuilder()
       .setDescription(`<@${senderId}> dapped up <@${targetUser.id}>`)
@@ -401,7 +372,6 @@ client.on('interactionCreate', async interaction => {
     await interaction.reply({ embeds: [dapEmbed] });
   }
 
-  // --- SAY COMMAND ---
   if (commandName === 'say') {
     const userMessage = interaction.options.getString('message');
     await interaction.reply({ content: userMessage });
