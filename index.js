@@ -294,7 +294,7 @@ client.on('interactionCreate', async interaction => {
     const subcommand = interaction.options.getSubcommand();
     const targetUser = interaction.options.getUser('user');
     const reason = interaction.options.getString('reason');
-    const LOG_CHANNEL_ID = '1444216285964800093'; // Replace with preferred logging channel
+    const LOG_CHANNEL_ID = '1396953023426727998'; // Replace with preferred logging channel
     const logChannel = interaction.guild.channels.cache.get(LOG_CHANNEL_ID);
 
     let targetMember;
