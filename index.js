@@ -282,7 +282,7 @@ client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
   const { commandName, user } = interaction;
 
-  // --- MODERATION PANEL COMMAND ---
+ // --- MODERATION PANEL COMMAND ---
   if (commandName === 'mod') {
     if (!interaction.member.permissions.has('ModerateMembers')) {
       return await interaction.reply({ 
@@ -294,7 +294,7 @@ client.on('interactionCreate', async interaction => {
     const subcommand = interaction.options.getSubcommand();
     const targetUser = interaction.options.getUser('user');
     const reason = interaction.options.getString('reason');
-    const LOG_CHANNEL_ID = '1396953023426727998'; // Replace with preferred logging channel
+    const LOG_CHANNEL_ID = '1444216285964800093'; // Replace with your preferred logging channel
     const logChannel = interaction.guild.channels.cache.get(LOG_CHANNEL_ID);
 
     let targetMember;
@@ -320,12 +320,11 @@ client.on('interactionCreate', async interaction => {
       const logEmbed = new EmbedBuilder()
         .setTitle('User Warned')
         .addFields(
-          { name: 'Target', value: `<@${targetUser.id}> (${targetUser.tag})`, inline: true },
+          { name: 'Target', value: `<@${targetUser.id}>\nTag: \`${targetUser.tag}\`\nID: \`${targetUser.id}\``, inline: true },
           { name: 'Moderator', value: `<@${interaction.user.id}>`, inline: true },
           { name: 'Reason', value: reason }
         )
-        .setColor('#f1c40f')
-        .setTimestamp();
+        .setColor('#2b2d31');
 
       if (logChannel) logChannel.send({ embeds: [logEmbed] });
       return await interaction.editReply({ content: `Successfully warned <@${targetUser.id}>.` });
@@ -349,13 +348,12 @@ client.on('interactionCreate', async interaction => {
       const logEmbed = new EmbedBuilder()
         .setTitle('User Timed Out')
         .addFields(
-          { name: 'Target', value: `<@${targetUser.id}> (${targetUser.tag})`, inline: true },
+          { name: 'Target', value: `<@${targetUser.id}>\nTag: \`${targetUser.tag}\`\nID: \`${targetUser.id}\``, inline: true },
           { name: 'Moderator', value: `<@${interaction.user.id}>`, inline: true },
           { name: 'Duration', value: `${duration} minutes`, inline: true },
           { name: 'Reason', value: reason }
         )
-        .setColor('#e67e22')
-        .setTimestamp();
+        .setColor('#2b2d31');
 
       if (logChannel) logChannel.send({ embeds: [logEmbed] });
       return await interaction.editReply({ content: `Successfully timed out <@${targetUser.id}> for ${duration} minutes.` });
@@ -377,12 +375,11 @@ client.on('interactionCreate', async interaction => {
       const logEmbed = new EmbedBuilder()
         .setTitle('User Banned')
         .addFields(
-          { name: 'Target', value: `${targetUser.tag} (${targetUser.id})`, inline: true },
+          { name: 'Target', value: `<@${targetUser.id}>\nTag: \`${targetUser.tag}\`\nID: \`${targetUser.id}\``, inline: true },
           { name: 'Moderator', value: `<@${interaction.user.id}>`, inline: true },
           { name: 'Reason', value: reason }
         )
-        .setColor('#e74c3c')
-        .setTimestamp();
+        .setColor('#2b2d31');
 
       if (logChannel) logChannel.send({ embeds: [logEmbed] });
       return await interaction.editReply({ content: `Successfully banned ${targetUser.tag}.` });
