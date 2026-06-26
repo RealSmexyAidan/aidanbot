@@ -253,6 +253,16 @@ client.on('guildMemberAdd', async member => {
       .setDescription(`<@${member.id}> has crossed the Aidan wall. Welcome to Aidansville!`)
       .setColor('#2b2d31');
     channel.send({ embeds: [welcomeEmbed] });
+ }
+
+  // Automatically assign the default member role on join
+  try {
+    const defaultRole = member.guild.roles.cache.get('1520015021894144130'); // Uses your role ID
+    if (defaultRole) {
+      await member.roles.add(defaultRole);
+    }
+  } catch (error) {
+    // Left completely silent on success, only catches if Discord permissions fail
   }
 });
 
