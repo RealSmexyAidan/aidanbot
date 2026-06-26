@@ -365,7 +365,7 @@ client.on('interactionCreate', async interaction => {
       }
 
       try {
-        await targetUser.send(` You have been permanently banned from **${interaction.guild.name}**.\n**Reason:** ${reason}`);
+        await targetUser.send(` You have been banned from **${interaction.guild.name}**.\n**Reason:** ${reason}`);
       } catch (e) {
         console.log(`Could not DM user ${targetUser.tag}`);
       }
