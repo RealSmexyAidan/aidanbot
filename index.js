@@ -338,7 +338,7 @@ client.on('interactionCreate', async interaction => {
       }
 
       try {
-        await targetUser.send(`You have been timed out in **${interaction.guild.name}** for **${duration} minutes**.\n**Reason:** ${reason}\n\n*Appeal by messaging @realsmexyaidan*`);
+        await targetUser.send(`You have been timed out in **${interaction.guild.name}** for **${duration} minutes**.\n**Reason:** ${reason}`);
       } catch (e) {
         console.log(`Could not DM user ${targetUser.tag}`);
       }
@@ -365,7 +365,7 @@ client.on('interactionCreate', async interaction => {
       }
 
       try {
-        await targetUser.send(` You have been banned from **${interaction.guild.name}**.\n**Reason:** ${reason}\n\n*Appeal by messaging @realsmexyaidan*`);
+        await targetUser.send(` You have been banned from **${interaction.guild.name}**.\n**Reason:** ${reason}`);
       } catch (e) {
         console.log(`Could not DM user ${targetUser.tag}`);
       }
