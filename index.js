@@ -9,22 +9,25 @@ app.get('/', (req, res) => res.send('Aidan Bot Status, Commands, Levels, and Sta
 app.listen(PORT, () => console.log(`Web server running on port ${PORT}`));
 
 // 2. Read Tokens / Credentials
-let TOKEN, CLIENT_ID, DATABASE_URL;
-try {
-  const config = require('./config.json');
-  TOKEN = config.TOKEN;
-  CLIENT_ID = config.CLIENT_ID;
-  DATABASE_URL = config.DATABASE_URL;
-} catch (e) {
-  TOKEN = process.env.TOKEN;
-  CLIENT_ID = process.env.CLIENT_ID;
-  DATABASE_URL = process.env.DATABASE_URL; // Injected by Railway automatically
+let TOKEN = process.env.TOKEN;
+let CLIENT_ID = process.env.CLIENT_ID;
+let DATABASE_URL = process.env.DATABASE_URL;
+
+if (!TOKEN || !CLIENT_ID || !DATABASE_URL) {
+  try {
+    const config = require('./config.json');
+    if (!TOKEN) TOKEN = config.TOKEN;
+    if (!CLIENT_ID) CLIENT_ID = config.CLIENT_ID;
+    if (!DATABASE_URL) DATABASE_URL = config.DATABASE_URL;
+  } catch (e) {
+    console.log("ℹ️ Running via environment variables.");
+  }
 }
 
 // Initialize Database Connection Pool
 const pool = new Pool({
   connectionString: DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
 });
 
 // Database Helper Functions
@@ -37,26 +40,7 @@ async function initDb() {
       daps INTEGER DEFAULT 0
     )
   `);
-
-  const countRes = await pool.query('SELECT COUNT(*) FROM users');
-  if (parseInt(countRes.rows[0].count) === 0) {
-    const initialData = [
-      ['708900648741109791', 1037, 26, 0],
-      ['1273551439096188988', 520, 20, 0],
-      ['1145994993706729512', 249, 10, 0],
-      ['1429472238155071591', 79, 9, 0],
-      ['1013255001935708200', 313, 8, 0],
-      ['1181075917720780872', 101, 7, 0],
-      ['810194398721605723', 92, 6, 0],
-      ['1087546933679231086', 82, 1, 0],
-      ['854900667265449994', 10, 1, 0],
-      ['705497311735840899', 14, 0, 0]
-    ];
-    for (const [id, xp, lvl, daps] of initialData) {
-      await pool.query('INSERT INTO users (user_id, xp, level, daps) VALUES ($1, $2, $3, $4)', [id, xp, lvl, daps]);
-    }
-    console.log('📊 Database initialized with seed leaderboard values.');
-  }
+  console.log('📊 Database table verified and ready.');
 }
 
 async function getUserData(userId) {
@@ -225,6 +209,7 @@ client.on('guildMemberAdd', async member => {
 
 // 8. Interaction and Command Logic Handler
 client.on('interactionCreate', async interaction => {
+  // --- LEADERBOARD BUTTON INTERACTION PROCESSOR ---
   if (interaction.isButton()) {
     if (interaction.customId === 'lb_levels' || interaction.customId === 'lb_daps') {
       const medals = ['🥇', '🥈', '🥉'];
@@ -263,6 +248,7 @@ client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
   const { commandName, user } = interaction;
 
+  // --- COOLDOWN SYSTEM ---
   const COOLDOWN_AMOUNT = 30000; 
   if (!cooldowns.has(commandName)) cooldowns.set(commandName, new Collection());
   const now = Date.now();
@@ -281,6 +267,7 @@ client.on('interactionCreate', async interaction => {
   timestamps.set(user.id, now);
   setTimeout(() => timestamps.delete(user.id), COOLDOWN_AMOUNT);
 
+  // --- INDIVIDUAL LEVEL COMMAND ---
   if (commandName === 'level') {
     const targetUser = interaction.options.getUser('user') || user;
     const userData = await getUserData(targetUser.id);
@@ -302,6 +289,7 @@ client.on('interactionCreate', async interaction => {
     return await interaction.reply({ embeds: [lvlEmbed] });
   }
 
+  // --- LEADERBOARD COMMAND ---
   if (commandName === 'leaderboard') {
     const res = await pool.query('SELECT * FROM users ORDER BY level DESC, xp DESC LIMIT 10');
     let description = '';
@@ -335,6 +323,7 @@ client.on('interactionCreate', async interaction => {
     return await interaction.reply({ embeds: [lbEmbed], components: [row] });
   }
 
+  // --- COIN FLIP COMMAND ---
   if (commandName === 'coinflip') {
     const outcomes = ['Heads', 'Tails'];
     const result = outcomes[Math.floor(Math.random() * outcomes.length)];
@@ -346,6 +335,7 @@ client.on('interactionCreate', async interaction => {
     return await interaction.reply({ embeds: [coinEmbed] });
   }
 
+  // --- PING COMMAND ---
   if (commandName === 'ping') {
     const initialEmbed = new EmbedBuilder().setDescription('Pinging Aidan Bot...').setColor('#2b2d31');
     const sent = await interaction.reply({ embeds: [initialEmbed], fetchReply: true });
@@ -357,6 +347,7 @@ client.on('interactionCreate', async interaction => {
     await interaction.editReply({ embeds: [finalEmbed] });
   }
 
+  // --- DAP UP COMMAND ---
   if (commandName === 'dapup') {
     const targetUser = interaction.options.getUser('user');
     const senderId = interaction.user.id;
@@ -372,11 +363,22 @@ client.on('interactionCreate', async interaction => {
     await interaction.reply({ embeds: [dapEmbed] });
   }
 
+  // --- SAY COMMAND ---
   if (commandName === 'say') {
     const userMessage = interaction.options.getString('message');
     await interaction.reply({ content: userMessage });
   }
 });
+
+// --- REACTION ROLE CONFIGURATION ---
+const REACTION_MESSAGE_ID = '1500691229493694546'; 
+const REACTION_CHANNEL_ID = '1455482928103686410'; 
+
+const reactionRoles = {
+  '📢': '1469584337895686237', 
+  '🤖': '1469584568578343045',
+  '\u{1F4AC}': '1456407903702351925'
+};
 
 // 9. Reaction Role Module - Give Role
 client.on('messageReactionAdd', async (reaction, user) => {
