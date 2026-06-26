@@ -257,7 +257,7 @@ client.on('guildMemberAdd', async member => {
 
   // Automatically assign the default member role on join
   try {
-    const defaultRole = member.guild.roles.cache.get('1520015021894144130'); // Uses your role ID
+    const defaultRole = member.guild.roles.cache.get('1397383481465507861'); // Uses your role ID
     if (defaultRole) {
       await member.roles.add(defaultRole);
     }
