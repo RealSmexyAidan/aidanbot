@@ -229,6 +229,9 @@ client.on('messageCreate', async message => {
       } else if (newLevel >= 10) {
         const role = message.guild.roles.cache.get('1505614729651949771'); 
         if (role && !member.roles.cache.has(role.id)) await member.roles.add(role);
+      } if (newLevel >= 1) {
+        const role = message.guild.roles.cache.get('1520015021894144130'); 
+        if (role && !member.roles.cache.has(role.id)) await member.roles.add(role);
       }
     } catch (roleError) {
       console.error("Failed to assign role:", roleError);
