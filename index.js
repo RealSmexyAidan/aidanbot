@@ -306,12 +306,12 @@ client.on('interactionCreate', async interaction => {
       .setDescription(description || 'No one has earned XP yet!')
       .setColor('#2b2d31')
       .setThumbnail(interaction.guild.iconURL());
-
-    const row = new ActionRowBuilder().addComponents(
+    
+const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('lb_levels')
         .setLabel('Level Leaderboard')
-        .setStyle(ButtonStyle.Primary)
+        .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
         .setCustomId('lb_daps')
         .setLabel('Dap Leaderboard')
