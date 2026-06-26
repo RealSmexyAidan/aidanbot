@@ -40,7 +40,7 @@ const cooldowns = new Collection();
 const xpCooldowns = new Set();
 const dbPath = path.join(__dirname, 'levels.json');
 
-// Safe Database Functions (Updated to automatically handle daps property!)
+// Safe Database Functions
 function getDb() {
   if (!fs.existsSync(dbPath)) {
     const initialData = {
@@ -60,7 +60,6 @@ function getDb() {
   }
   
   const data = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
-  // Ensure legacy or missing profiles get defaulted to 0 daps instead of crashing
   Object.keys(data).forEach(userId => {
     if (data[userId].daps === undefined) {
       data[userId].daps = 0;
@@ -317,7 +316,7 @@ client.on('interactionCreate', async interaction => {
     return await interaction.reply({ embeds: [lvlEmbed] });
   }
 
-  // --- LEADERBOARD COMMAND (With Buttons!) ---
+  // --- LEADERBOARD COMMAND ---
   if (commandName === 'leaderboard') {
     const db = getDb();
     const sorted = Object.entries(db)
@@ -340,7 +339,6 @@ client.on('interactionCreate', async interaction => {
       .setColor('#2b2d31')
       .setThumbnail(interaction.guild.iconURL());
 
-    // Creating buttons to switch pages
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('lb_levels')
@@ -385,7 +383,16 @@ client.on('interactionCreate', async interaction => {
     const db = getDb();
     const senderId = interaction.user.id;
 
+    if (!db[senderId]) {
+      db[senderId] = { xp: 0, level: 0, daps: 0 };
+    }
+
+    // Still count it in the database safely
+    db[senderId].daps = (db[senderId].daps || 0) + 1;
+    saveDb(db);
+
     const dapEmbed = new EmbedBuilder()
+      .setDescription(`<@${senderId}> dapped up <@${targetUser.id}>`)
       .setColor('#2b2d31')
       .setImage('https://media3.giphy.com/media/v1.Y2lkPTZjMDliOTUyeHJnbWZrZm5wOXpzY2x2aWF2b3U0OWloZ2FxcThrOWhja2IzM3NsbCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/zSt9sNWYqGQb6gKCak/giphy.gif');
     
