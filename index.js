@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ApplicationCommandOptionType, Collection, ActivityType, Partials } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ApplicationCommandOptionType, Collection, ActivityType, Partials, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -20,19 +20,19 @@ try {
   CLIENT_ID = process.env.CLIENT_ID;
 }
 
-// 3. Create Bot Client Instance (Updated for Reaction Roles!)
+// 3. Create Bot Client Instance
 const client = new Client({ 
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMessageReactions // Allows the bot to track reaction add/removes
+    GatewayIntentBits.GuildMessageReactions 
   ],
   partials: [
     Partials.Message, 
     Partials.Channel, 
-    Partials.Reaction // Essential for detecting reactions on messages sent before the bot was online
+    Partials.Reaction 
   ]
 });
 
@@ -40,26 +40,33 @@ const cooldowns = new Collection();
 const xpCooldowns = new Set();
 const dbPath = path.join(__dirname, 'levels.json');
 
-// Safe Database Functions
+// Safe Database Functions (Updated to automatically handle daps property!)
 function getDb() {
   if (!fs.existsSync(dbPath)) {
-    // PRE-FILLED WITH YOUR EXACT LEADERBOARD VALUES!
     const initialData = {
-      "708900648741109791": { xp: 1037, level: 26 }, // Aidan's ID
-      "1273551439096188988": { xp: 520, level: 20 },      // Lee's User ID
-      "1145994993706729512": { xp: 249, level: 10 },    // idkXD's User ID
-      "1429472238155071591": { xp: 79, level: 9 },       // BDub's User ID
-      "1013255001935708200": { xp: 313, level: 8 },     // Jimmy's User ID
-      "1181075917720780872": { xp: 101, level: 7 }, // Sebastian's User ID
-      "810194398721605723": { xp: 92, level: 6 },     // Walter's User ID
-      "1087546933679231086": { xp: 82, level: 1 },      // Fuego's User ID
-      "854900667265449994": { xp: 10, level: 1 },  // Manofmike's User ID
-      "705497311735840899": { xp: 14, level: 0 } // Anderdingus's User ID
+      "708900648741109791": { xp: 1037, level: 26, daps: 0 }, 
+      "1273551439096188988": { xp: 520, level: 20, daps: 0 },      
+      "1145994993706729512": { xp: 249, level: 10, daps: 0 },    
+      "1429472238155071591": { xp: 79, level: 9, daps: 0 },       
+      "1013255001935708200": { xp: 313, level: 8, daps: 0 },     
+      "1181075917720780872": { xp: 101, level: 7, daps: 0 }, 
+      "810194398721605723": { xp: 92, level: 6, daps: 0 },     
+      "1087546933679231086": { xp: 82, level: 1, daps: 0 },      
+      "854900667265449994": { xp: 10, level: 1, daps: 0 },  
+      "705497311735840899": { xp: 14, level: 0, daps: 0 } 
     };
     fs.writeFileSync(dbPath, JSON.stringify(initialData, null, 2));
     return initialData;
   }
-  return JSON.parse(fs.readFileSync(dbPath, 'utf8'));
+  
+  const data = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
+  // Ensure legacy or missing profiles get defaulted to 0 daps instead of crashing
+  Object.keys(data).forEach(userId => {
+    if (data[userId].daps === undefined) {
+      data[userId].daps = 0;
+    }
+  });
+  return data;
 }
 
 // --- REACTION ROLE CONFIGURATION ---
@@ -90,7 +97,7 @@ const commands = [
     options: [{ name: 'message', type: ApplicationCommandOptionType.String, description: 'The text you want Aidan Bot to repeat', required: true }]
   },
   { name: 'coinflip', description: 'Flip a coin' },
-  { name: 'leaderboard', description: 'Display the Aidansville Level Leaderboard' },
+  { name: 'leaderboard', description: 'Display the Aidansville Level or Dap Leaderboard' },
   {
     name: 'level',
     description: 'Check your current level and card progress',
@@ -103,9 +110,8 @@ const statuses = ["Made by Aidan", "Watching Aidansville"];
 // 5. Ready Event Handler
 client.once('ready', async () => {
   console.log(`🤖 Logged in as ${client.user.tag}!`);
-  getDb(); // Initializes database file if it's missing
+  getDb(); 
   
-  // Status Cycle Setup
   let statusIndex = 0;
   client.user.setPresence({
       activities: [{ name: statuses[statusIndex], type: ActivityType.Custom }],
@@ -155,7 +161,7 @@ client.on('messageCreate', async message => {
   const userId = message.author.id;
 
   if (!db[userId]) {
-    db[userId] = { xp: 0, level: 0 };
+    db[userId] = { xp: 0, level: 0, daps: 0 };
   }
 
   const xpGained = Math.floor(Math.random() * 11) + 15;
@@ -220,6 +226,49 @@ client.on('guildMemberAdd', async member => {
 
 // 8. Interaction and Command Logic Handler
 client.on('interactionCreate', async interaction => {
+  // --- LEADERBOARD BUTTON INTERACTION PROCESSOR ---
+  if (interaction.isButton()) {
+    if (interaction.customId === 'lb_levels' || interaction.customId === 'lb_daps') {
+      const db = getDb();
+      const medals = ['🥇', '🥈', '🥉'];
+      let description = '';
+      let title = '';
+
+      if (interaction.customId === 'lb_levels') {
+        title = 'Aidansville Level Leaderboard';
+        const sorted = Object.entries(db)
+          .map(([id, data]) => ({ id, ...data }))
+          .sort((a, b) => b.level - a.level || b.xp - a.xp)
+          .slice(0, 10);
+
+        sorted.forEach((player, idx) => {
+          const prefix = idx < 3 ? `${medals[idx]} ` : `**${idx + 1}** `;
+          const nextLvlXp = (player.level * 50) + 50;
+          description += `${prefix}<@${player.id}> • **Level ${player.level}** • ${player.xp}/${nextLvlXp} XP\n`;
+        });
+      } else {
+        title = 'Aidansville Dap Leaderboard';
+        const sorted = Object.entries(db)
+          .map(([id, data]) => ({ id, ...data }))
+          .sort((a, b) => (b.daps || 0) - (a.daps || 0))
+          .slice(0, 10);
+
+        sorted.forEach((player, idx) => {
+          const prefix = idx < 3 ? `${medals[idx]} ` : `**${idx + 1}** `;
+          description += `${prefix}<@${player.id}> • **${player.daps || 0} daps** given\n`;
+        });
+      }
+
+      const updatedEmbed = new EmbedBuilder()
+        .setTitle(title)
+        .setDescription(description || 'No data recorded yet!')
+        .setColor('#2b2d31')
+        .setThumbnail(interaction.guild.iconURL());
+
+      return await interaction.update({ embeds: [updatedEmbed] });
+    }
+  }
+
   if (!interaction.isChatInputCommand()) return;
   const { commandName, user } = interaction;
 
@@ -247,7 +296,7 @@ client.on('interactionCreate', async interaction => {
     const targetUser = interaction.options.getUser('user') || user;
     const db = getDb();
     
-    const userData = db[targetUser.id] || { xp: 0, level: 0 };
+    const userData = db[targetUser.id] || { xp: 0, level: 0, daps: 0 };
     const xpNeeded = (userData.level * 50) + 50;
 
     const sorted = Object.entries(db)
@@ -268,7 +317,7 @@ client.on('interactionCreate', async interaction => {
     return await interaction.reply({ embeds: [lvlEmbed] });
   }
 
-  // --- LEADERBOARD COMMAND ---
+  // --- LEADERBOARD COMMAND (With Buttons!) ---
   if (commandName === 'leaderboard') {
     const db = getDb();
     const sorted = Object.entries(db)
@@ -286,12 +335,26 @@ client.on('interactionCreate', async interaction => {
     });
 
     const lbEmbed = new EmbedBuilder()
-      .setTitle('Aidansville Leaderboard')
+      .setTitle('Aidansville Level Leaderboard')
       .setDescription(description || 'No one has earned XP yet!')
       .setColor('#2b2d31')
       .setThumbnail(interaction.guild.iconURL());
 
-    return await interaction.reply({ embeds: [lbEmbed] });
+    // Creating buttons to switch pages
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('lb_levels')
+        .setLabel('Level Leaderboard')
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji('🏆'),
+      new ButtonBuilder()
+        .setCustomId('lb_daps')
+        .setLabel('Dap Leaderboard')
+        .setStyle(ButtonStyle.Success)
+        .setEmoji('🤝')
+    );
+
+    return await interaction.reply({ embeds: [lbEmbed], components: [row] });
   }
 
   // --- COIN FLIP COMMAND ---
@@ -318,13 +381,25 @@ client.on('interactionCreate', async interaction => {
     await interaction.editReply({ embeds: [finalEmbed] });
   }
 
-  // --- DAP UP COMMAND ---
+  // --- DAP UP COMMAND (Now updates counter!) ---
   if (commandName === 'dapup') {
     const targetUser = interaction.options.getUser('user');
+    const db = getDb();
+    const senderId = interaction.user.id;
+
+    if (!db[senderId]) {
+      db[senderId] = { xp: 0, level: 0, daps: 0 };
+    }
+
+    // Increment sender's dap stats
+    db[senderId].daps = (db[senderId].daps || 0) + 1;
+    saveDb(db);
+
     const dapEmbed = new EmbedBuilder()
-      .setDescription(`<@${interaction.user.id}> dapped up <@${targetUser.id}>`)
+      .setDescription(`<@${senderId}> dapped up <@${targetUser.id}>\n\n*You have given a total of **${db[senderId].daps}** daps!*`)
       .setColor('#2b2d31')
       .setImage('https://media3.giphy.com/media/v1.Y2lkPTZjMDliOTUyeHJnbWZrZm5wOXpzY2x2aWF2b3U0OWloZ2FxcThrOWhja2IzM3NsbCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/zSt9sNWYqGQb6gKCak/giphy.gif');
+    
     await interaction.reply({ embeds: [dapEmbed] });
   }
 
