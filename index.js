@@ -415,7 +415,7 @@ client.on('interactionCreate', async interaction => {
   if (commandName === 'purge') {
     if (!interaction.member.permissions.has('ManageMessages')) {
       return await interaction.reply({ 
-        content: 'You do not have permission to use the purge command.', 
+        content: 'You do not have permission to use the purge command', 
         ephemeral: true 
       });
     }
