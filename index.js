@@ -298,7 +298,7 @@ client.on('interactionCreate', async interaction => {
   if (commandName === 'mod') {
     if (!interaction.member.permissions.has('ModerateMembers')) {
       return await interaction.reply({ 
-        content: 'You do not have permission to use moderation commands.', 
+        content: 'You do not have permission to use moderation commands', 
         ephemeral: true 
       });
     }
