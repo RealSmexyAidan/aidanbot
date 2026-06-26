@@ -344,10 +344,12 @@ client.on('interactionCreate', async interaction => {
         .setCustomId('lb_levels')
         .setLabel('Level Leaderboard')
         .setStyle(ButtonStyle.Primary)
+        .setEmoji('🏆'),
       new ButtonBuilder()
         .setCustomId('lb_daps')
         .setLabel('Dap Leaderboard')
         .setStyle(ButtonStyle.Success)
+        .setEmoji('🤝')
     );
 
     return await interaction.reply({ embeds: [lbEmbed], components: [row] });
