@@ -461,7 +461,7 @@ client.on('interactionCreate', async interaction => {
   }
 
   // --- STANDARD INTERACTION COOLDOWN ENFORCEMENT ---
-  const COOLDOWN_AMOUNT = 30000; 
+  const COOLDOWN_AMOUNT = 5000; 
   if (!cooldowns.has(commandName)) cooldowns.set(commandName, new Collection());
   const now = Date.now();
   const timestamps = cooldowns.get(commandName);
