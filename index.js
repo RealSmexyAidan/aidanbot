@@ -514,51 +514,86 @@ client.on('interactionCreate', async interaction => {
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, 400, 400);
 
-// 3. Render the Quote Text (Centered)
+// 3. Render the Quote Text (Centered with Auto-Resizing)
       ctx.fillStyle = '#ffffff';
-      ctx.font = '32px "CustomArial"'; // Uses your Roboto Condensed font
-      ctx.textAlign = 'center';        // Changed from 'left' to 'center'
+      ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
-      // Simple text wrapping rule for longer messages
       const words = targetMessage.content.split(' ');
+      const maxWidth = 350;
+      const xPos = 600; 
+
+      // 1. Initial wrap at standard 32px size to count lines
+      ctx.font = '32px "CustomArial"';
       let line = '';
       let lines = [];
-      const maxWidth = 350;
-      
-      // Moving the X position to 600 (exactly halfway across the remaining 400px space)
-      const xPos = 600; 
-      let yPos = 160;
-
       for (let n = 0; n < words.length; n++) {
         let testLine = line + words[n] + ' ';
         let metrics = ctx.measureText(testLine);
         if (metrics.width > maxWidth && n > 0) {
-          lines.push(line);
+          lines.push(line.trim());
           line = words[n] + ' ';
         } else {
           line = testLine;
         }
       }
-      lines.push(line);
+      lines.push(line.trim());
 
-      // Draw each line of text centered
+      // 2. Adjust font size and spacing dynamically based on line count
+      let fontSize = 32;
+      let lineSpacing = 42;
+      let startY = 160;
+
+      if (lines.length > 5) {
+        // Text is super long! Drop sizes so it fits perfectly
+        fontSize = 20;
+        lineSpacing = 26;
+        startY = 100; // Lift the starting position up to make room
+        
+        // Re-calculate wrapping with the smaller font size for better text distribution
+        ctx.font = `${fontSize}px "CustomArial"`;
+        line = '';
+        lines = [];
+        for (let n = 0; n < words.length; n++) {
+          let testLine = line + words[n] + ' ';
+          let metrics = ctx.measureText(testLine);
+          if (metrics.width > maxWidth && n > 0) {
+            lines.push(line.trim());
+            line = words[n] + ' ';
+          } else {
+            line = testLine;
+          }
+        }
+        lines.push(line.trim());
+      } else if (lines.length > 3) {
+        // Text is medium length
+        fontSize = 26;
+        lineSpacing = 34;
+        startY = 130;
+        ctx.font = `${fontSize}px "CustomArial"`;
+      } else {
+        // Short text uses default crisp 32px sizing
+        ctx.font = '32px "CustomArial"';
+      }
+
+      // Draw each line of text centered using our dynamic layouts
+      let yPos = startY;
       lines.forEach((textLine) => {
-        ctx.fillText(textLine.trim(), xPos, yPos);
-        yPos += 42; // Line spacing
+        ctx.fillText(textLine, xPos, yPos);
+        yPos += lineSpacing;
       });
 
-      // 4. Render Author Details (Centered in the middle)
-      yPos += 20; // Space below the main quote
+      // 4. Render Author Details (Pushed down dynamically so it never overlaps)
+      yPos += 24; 
       ctx.fillStyle = '#aaaaaa';
       ctx.font = 'italic 24px "CustomArial"';
-      ctx.textAlign = 'center';        // Centers the display name
+      ctx.textAlign = 'center';
       ctx.fillText(`- ${targetMessage.author.displayName || targetMessage.author.username}`, xPos, yPos);
 
       yPos += 28;
       ctx.fillStyle = '#666666';
       ctx.font = '18px "CustomArial"';
-      ctx.textAlign = 'center';        // Centers the @ handle
+      ctx.textAlign = 'center';
       ctx.fillText(`@${targetMessage.author.username}`, xPos, yPos);
 
       // 5. Convert canvas matrix into a Discord attachment file
