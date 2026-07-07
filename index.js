@@ -5,7 +5,7 @@ const { Pool } = require('pg');
 const path = require('path');
 
 // Register the exact font filename you uploaded
-GlobalFonts.registerFromPath(path.join(__dirname, 'Roboto_Condensed-Regular.ttf'), 'CustomArial');
+GlobalFonts.registerFromPath(path.join(__dirname, 'ARIAL.TTF'), 'CustomArial');
 
 // 1. Keep-Alive Web Server for Railway
 const app = express();
