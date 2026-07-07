@@ -107,7 +107,7 @@ const commands = [
   },
   {
     name: 'quote',
-    description: 'Quote a memorable message using its message ID',
+    description: 'Quote a message using its message ID',
     options: [
       {
         name: 'message_id',
