@@ -514,10 +514,10 @@ client.on('interactionCreate', async interaction => {
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, 400, 400);
 
-      // 3. Render the Quote Text
+// 3. Render the Quote Text (Centered)
       ctx.fillStyle = '#ffffff';
-      ctx.font = '32px "CustomArial"'; // Uses your registered font asset
-      ctx.textAlign = 'left';
+      ctx.font = '32px "CustomArial"'; // Uses your Roboto Condensed font
+      ctx.textAlign = 'center';        // Changed from 'left' to 'center'
       ctx.textBaseline = 'middle';
 
       // Simple text wrapping rule for longer messages
@@ -525,7 +525,9 @@ client.on('interactionCreate', async interaction => {
       let line = '';
       let lines = [];
       const maxWidth = 350;
-      const xPos = 420;
+      
+      // Moving the X position to 600 (exactly halfway across the remaining 400px space)
+      const xPos = 600; 
       let yPos = 160;
 
       for (let n = 0; n < words.length; n++) {
@@ -540,21 +542,23 @@ client.on('interactionCreate', async interaction => {
       }
       lines.push(line);
 
-      // Draw each line of text
+      // Draw each line of text centered
       lines.forEach((textLine) => {
         ctx.fillText(textLine.trim(), xPos, yPos);
         yPos += 42; // Line spacing
       });
 
-      // 4. Render Author Details (Name and Handle)
+      // 4. Render Author Details (Centered in the middle)
       yPos += 20; // Space below the main quote
       ctx.fillStyle = '#aaaaaa';
       ctx.font = 'italic 24px "CustomArial"';
+      ctx.textAlign = 'center';        // Centers the display name
       ctx.fillText(`- ${targetMessage.author.displayName || targetMessage.author.username}`, xPos, yPos);
 
       yPos += 28;
       ctx.fillStyle = '#666666';
       ctx.font = '18px "CustomArial"';
+      ctx.textAlign = 'center';        // Centers the @ handle
       ctx.fillText(`@${targetMessage.author.username}`, xPos, yPos);
 
       // 5. Convert canvas matrix into a Discord attachment file
