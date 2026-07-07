@@ -104,6 +104,18 @@ const commands = [
     ]
   },
   {
+    name: 'quote',
+    description: 'Quote a memorable message using its message ID',
+    options: [
+      {
+        name: 'message_id',
+        type: ApplicationCommandOptionType.String,
+        description: 'The ID of the message you want to quote',
+        required: true
+      }
+    ]
+  },
+  {
     name: 'mod',
     description: 'Staff moderation tools',
     options: [
@@ -456,6 +468,39 @@ client.on('interactionCreate', async interaction => {
       console.error('Error purging messages:', error);
       return await interaction.editReply({ 
         content: 'There was an error trying to purge messages in this channel (Messages older than 14 days cannot be purged)' 
+      });
+    }
+  }
+
+  // --- QUOTE COMMAND ---
+  if (commandName === 'quote') {
+    const messageId = interaction.options.getString('message_id');
+
+    try {
+      const targetMessage = await interaction.channel.messages.fetch(messageId);
+      
+      if (!targetMessage.content) {
+        return await interaction.reply({ 
+          content: 'That message does not contain any text to quote!', 
+          ephemeral: true 
+        });
+      }
+
+      const quoteEmbed = new EmbedBuilder()
+        .setAuthor({ 
+          name: targetMessage.author.username, 
+          iconURL: targetMessage.author.displayAvatarURL({ dynamic: true }) 
+        })
+        .setDescription(targetMessage.content)
+        .setColor('#2b2d31');
+
+      return await interaction.reply({ embeds: [quoteEmbed] });
+
+    } catch (error) {
+      console.error('Error fetching message for quote:', error);
+      return await interaction.reply({ 
+        content: 'Could not find that message. Make sure the ID is correct and from this channel!', 
+        ephemeral: true 
       });
     }
   }
