@@ -474,9 +474,10 @@ client.on('interactionCreate', async interaction => {
     }
   }
 
- // --- QUOTE COMMAND ---
+// --- QUOTE COMMAND ---
   if (commandName === 'quote') {
     const messageId = interaction.options.getString('message_id');
+
     await interaction.deferReply(); // Image rendering takes a split second
 
     try {
@@ -484,7 +485,7 @@ client.on('interactionCreate', async interaction => {
       
       if (!targetMessage.content) {
         return await interaction.editReply({ 
-          content: 'That message does not contain any text to quote!' 
+          content: 'That message does not contain any text to quote' 
         });
       }
 
@@ -512,8 +513,7 @@ client.on('interactionCreate', async interaction => {
 
       // 3. Render the Quote Text
       ctx.fillStyle = '#ffffff';
-      // Added a full list of system fallbacks so it works on any server
-      ctx.font = '32px "Arial", "Helvetica Neue", "Segoe UI", sans-serif';
+      ctx.font = '32px "CustomArial"'; // Uses your registered font asset
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
 
@@ -543,15 +543,15 @@ client.on('interactionCreate', async interaction => {
         yPos += 42; // Line spacing
       });
 
-// 4. Render Author Details (Name and Handle)
+      // 4. Render Author Details (Name and Handle)
       yPos += 20; // Space below the main quote
       ctx.fillStyle = '#aaaaaa';
-      ctx.font = 'italic 24px "Arial", "Helvetica Neue", "Segoe UI", sans-serif';
+      ctx.font = 'italic 24px "CustomArial"';
       ctx.fillText(`- ${targetMessage.author.displayName || targetMessage.author.username}`, xPos, yPos);
 
       yPos += 28;
       ctx.fillStyle = '#666666';
-      ctx.font = '18px "Arial", "Helvetica Neue", "Segoe UI", sans-serif';
+      ctx.font = '18px "CustomArial"';
       ctx.fillText(`@${targetMessage.author.username}`, xPos, yPos);
 
       // 5. Convert canvas matrix into a Discord attachment file
