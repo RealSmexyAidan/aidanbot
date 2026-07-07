@@ -1,3 +1,5 @@
+const { createCanvas, loadImage } = require('@napi-rs/canvas');
+const { AttachmentBuilder } = require('discord.js'); // Make sure AttachmentBuilder is destructured
 const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ApplicationCommandOptionType, Collection, ActivityType, Partials, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const express = require('express');
 const { Pool } = require('pg');
@@ -472,35 +474,96 @@ client.on('interactionCreate', async interaction => {
     }
   }
 
-  // --- QUOTE COMMAND ---
+ // --- QUOTE COMMAND ---
   if (commandName === 'quote') {
     const messageId = interaction.options.getString('message_id');
+    await interaction.deferReply(); // Image rendering takes a split second
 
     try {
       const targetMessage = await interaction.channel.messages.fetch(messageId);
       
       if (!targetMessage.content) {
-        return await interaction.reply({ 
-          content: 'That message does not contain any text to quote!', 
-          ephemeral: true 
+        return await interaction.editReply({ 
+          content: 'That message does not contain any text to quote!' 
         });
       }
 
-      const quoteEmbed = new EmbedBuilder()
-        .setAuthor({ 
-          name: targetMessage.author.username, 
-          iconURL: targetMessage.author.displayAvatarURL({ dynamic: true }) 
-        })
-        .setDescription(targetMessage.content)
-        .setColor('#2b2d31');
+      // 1. Create a canvas layout (800x400 landscape format)
+      const canvas = createCanvas(800, 400);
+      const ctx = canvas.getContext('2d');
 
-      return await interaction.reply({ embeds: [quoteEmbed] });
+      // Fill solid black background
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // 2. Load and draw the User's Avatar with a smooth fade-to-black gradient
+      const avatarUrl = targetMessage.author.displayAvatarURL({ extension: 'png', size: 512 });
+      const avatarImage = await loadImage(avatarUrl);
+      
+      // Draw avatar on the left half
+      ctx.drawImage(avatarImage, 0, 0, 400, 400);
+
+      // Apply a horizontal black gradient mask over the avatar to fade it out smoothly
+      const gradient = ctx.createLinearGradient(150, 0, 400, 0);
+      gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+      gradient.addColorStop(1, 'rgba(0, 0, 0, 1)');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, 400, 400);
+
+      // 3. Render the Quote Text
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '32px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+
+      // Simple text wrapping rule for longer messages
+      const words = targetMessage.content.split(' ');
+      let line = '';
+      let lines = [];
+      const maxWidth = 350;
+      const xPos = 420;
+      let yPos = 160;
+
+      for (let n = 0; n < words.length; n++) {
+        let testLine = line + words[n] + ' ';
+        let metrics = ctx.measureText(testLine);
+        if (metrics.width > maxWidth && n > 0) {
+          lines.push(line);
+          line = words[n] + ' ';
+        } else {
+          line = testLine;
+        }
+      }
+      lines.push(line);
+
+      // Draw each line of text
+      lines.forEach((textLine) => {
+        ctx.fillText(textLine.trim(), xPos, yPos);
+        yPos += 42; // Line spacing
+      });
+
+      // 4. Render Author Details (Name and Handle)
+      yPos += 20; // Space below the main quote
+      ctx.fillStyle = '#aaaaaa';
+      ctx.font = 'italic 24px sans-serif';
+      ctx.fillText(`- ${targetMessage.author.displayName || targetMessage.author.username}`, xPos, yPos);
+
+      yPos += 28;
+      ctx.fillStyle = '#666666';
+      ctx.font = '18px sans-serif';
+      ctx.fillText(`@${targetMessage.author.username}`, xPos, yPos);
+
+      // 5. Convert canvas matrix into a Discord attachment file
+      const buffer = canvas.toBuffer('image/png');
+      const attachment = new AttachmentBuilder(buffer, { name: `quote_${targetMessage.id}.png` });
+
+      // Post the image file directly to the channel
+      return await interaction.editReply({ files: [attachment] });
 
     } catch (error) {
-      console.error('Error fetching message for quote:', error);
-      return await interaction.reply({ 
-        content: 'Could not find that message. Make sure the ID is correct and from this channel!', 
-        ephemeral: true 
+      console.error('Error generating quote image:', error);
+      return await interaction.editReply({ 
+        content: 'Could not find that message. Make sure the ID is correct and from this channel!' 
       });
     }
   }
