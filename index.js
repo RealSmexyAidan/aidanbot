@@ -514,7 +514,7 @@ client.on('interactionCreate', async interaction => {
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, 400, 400);
 
-// 3. Render the Quote Text (Centered with Auto-Resizing)
+// 3. Render the Quote Text (Centered with Advanced Auto-Resizing & Safety Cap)
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -523,7 +523,7 @@ client.on('interactionCreate', async interaction => {
       const maxWidth = 350;
       const xPos = 600; 
 
-      // 1. Initial wrap at standard 32px size to count lines
+      // 1. Initial wrap calculation at standard 32px size
       ctx.font = '32px "CustomArial"';
       let line = '';
       let lines = [];
@@ -539,63 +539,73 @@ client.on('interactionCreate', async interaction => {
       }
       lines.push(line.trim());
 
-      // 2. Adjust font size and spacing dynamically based on line count
+      // 2. Advanced multi-tier font size checking
       let fontSize = 32;
       let lineSpacing = 42;
       let startY = 160;
 
-      if (lines.length > 5) {
-        // Text is super long! Drop sizes so it fits perfectly
+      // Check how many lines were generated and scale down dynamically
+      if (lines.length > 8) {
+        // ULTRA LONG TEXT -> Drop to 14px small font
+        fontSize = 14;
+        lineSpacing = 18;
+        startY = 60; 
+      } else if (lines.length > 5) {
+        // Very Long Text -> 20px
         fontSize = 20;
         lineSpacing = 26;
-        startY = 100; // Lift the starting position up to make room
-        
-        // Re-calculate wrapping with the smaller font size for better text distribution
-        ctx.font = `${fontSize}px "CustomArial"`;
-        line = '';
-        lines = [];
-        for (let n = 0; n < words.length; n++) {
-          let testLine = line + words[n] + ' ';
-          let metrics = ctx.measureText(testLine);
-          if (metrics.width > maxWidth && n > 0) {
-            lines.push(line.trim());
-            line = words[n] + ' ';
-          } else {
-            line = testLine;
-          }
-        }
-        lines.push(line.trim());
+        startY = 100;
       } else if (lines.length > 3) {
-        // Text is medium length
+        // Medium Text -> 26px
         fontSize = 26;
         lineSpacing = 34;
         startY = 130;
-        ctx.font = `${fontSize}px "CustomArial"`;
-      } else {
-        // Short text uses default crisp 32px sizing
-        ctx.font = '32px "CustomArial"';
       }
 
-      // Draw each line of text centered using our dynamic layouts
+      // 3. Re-calculate text wrapping based on chosen final font size
+      ctx.font = `${fontSize}px "CustomArial"`;
+      line = '';
+      lines = [];
+      for (let n = 0; n < words.length; n++) {
+        let testLine = line + words[n] + ' ';
+        let metrics = ctx.measureText(testLine);
+        if (metrics.width > maxWidth && n > 0) {
+          lines.push(line.trim());
+          line = words[n] + ' ';
+        } else {
+          line = testLine;
+        }
+      }
+      lines.push(line.trim());
+
+      // 4. HARD SAFETY LIMIT: If it STILL exceeds what can fit on screen, clip it safely
+      const maxAllowedLines = fontSize === 14 ? 14 : (fontSize === 20 ? 9 : 6);
+      if (lines.length > maxAllowedLines) {
+        lines = lines.slice(0, maxAllowedLines);
+        // Add an ellipsis to the last visible line so users know it was cut off
+        lines[lines.length - 1] = lines[lines.length - 1].replace(/[\s,.-]+$/, "") + "...";
+      }
+
+      // Draw each line of text cleanly
       let yPos = startY;
       lines.forEach((textLine) => {
         ctx.fillText(textLine, xPos, yPos);
         yPos += lineSpacing;
       });
 
-      // 4. Render Author Details (Pushed down dynamically so it never overlaps)
-      yPos += 24; 
+      // 5. Render Author Details (Dynamically follows the end of the text block)
+      yPos += 20; 
       ctx.fillStyle = '#aaaaaa';
-      ctx.font = 'italic 24px "CustomArial"';
+      ctx.font = 'italic 22px "CustomArial"';
       ctx.textAlign = 'center';
       ctx.fillText(`- ${targetMessage.author.displayName || targetMessage.author.username}`, xPos, yPos);
 
-      yPos += 28;
+      yPos += 26;
       ctx.fillStyle = '#666666';
-      ctx.font = '18px "CustomArial"';
+      ctx.font = '16px "CustomArial"';
       ctx.textAlign = 'center';
       ctx.fillText(`@${targetMessage.author.username}`, xPos, yPos);
-
+      
       // 5. Convert canvas matrix into a Discord attachment file
       const buffer = canvas.toBuffer('image/png');
       const attachment = new AttachmentBuilder(buffer, { name: `quote_${targetMessage.id}.png` });
