@@ -513,7 +513,8 @@ client.on('interactionCreate', async interaction => {
 
       // 3. Render the Quote Text
       ctx.fillStyle = '#ffffff';
-      ctx.font = '32px sans-serif';
+      // Added a full list of system fallbacks so it works on any server
+      ctx.font = '32px "Arial", "Helvetica Neue", "Segoe UI", sans-serif';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
 
@@ -543,15 +544,15 @@ client.on('interactionCreate', async interaction => {
         yPos += 42; // Line spacing
       });
 
-      // 4. Render Author Details (Name and Handle)
+// 4. Render Author Details (Name and Handle)
       yPos += 20; // Space below the main quote
       ctx.fillStyle = '#aaaaaa';
-      ctx.font = 'italic 24px sans-serif';
+      ctx.font = 'italic 24px "Arial", "Helvetica Neue", "Segoe UI", sans-serif';
       ctx.fillText(`- ${targetMessage.author.displayName || targetMessage.author.username}`, xPos, yPos);
 
       yPos += 28;
       ctx.fillStyle = '#666666';
-      ctx.font = '18px sans-serif';
+      ctx.font = '18px "Arial", "Helvetica Neue", "Segoe UI", sans-serif';
       ctx.fillText(`@${targetMessage.author.username}`, xPos, yPos);
 
       // 5. Convert canvas matrix into a Discord attachment file
@@ -564,7 +565,7 @@ client.on('interactionCreate', async interaction => {
     } catch (error) {
       console.error('Error generating quote image:', error);
       return await interaction.editReply({ 
-        content: 'Could not find that message. Make sure the ID is correct and from this channel!' 
+        content: 'Could not find that message. Make sure the ID is correct and from this channel' 
       });
     }
   }
