@@ -1,8 +1,11 @@
 const { createCanvas, loadImage, GlobalFonts } = require('@napi-rs/canvas');
-const { AttachmentBuilder } = require('discord.js'); // Make sure AttachmentBuilder is destructured
-const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ApplicationCommandOptionType, Collection, ActivityType, Partials, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ApplicationCommandOptionType, Collection, ActivityType, Partials, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const express = require('express');
 const { Pool } = require('pg');
+const path = require('path');
+
+// Register the exact font filename you uploaded
+GlobalFonts.registerFromPath(path.join(__dirname, 'Roboto_Condensed-Regular.ttf'), 'CustomArial');
 
 // 1. Keep-Alive Web Server for Railway
 const app = express();
