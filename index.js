@@ -3,9 +3,6 @@ const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ApplicationComman
 const express = require('express');
 const { Pool } = require('pg');
 const path = require('path');
-const { DisTube } = require('distube');
-const { YouTubePlugin } = require('@distube/youtube');
-const { SpotifyPlugin } = require('@distube/spotify');
 
 // Register the exact font filename you uploaded
 GlobalFonts.registerFromPath(path.join(__dirname, 'ARIAL.TTF'), 'CustomArial');
@@ -15,9 +12,6 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 app.get('/', (req, res) => res.send('Aidan Bot Status, Commands, Levels, and Stats are Online!'));
 app.listen(PORT, () => console.log(`Web server running on port ${PORT}`));
-
-// Target Logging Channel ID for Music Logs (REPLACE THIS WITH YOUR ACTUAL CHANNEL ID)
-const MUSIC_LOGS_CHANNEL_ID = '1418398569781661857';
 
 // 2. Read Tokens / Credentials
 let TOKEN = process.env.TOKEN;
@@ -33,11 +27,12 @@ if (!TOKEN || !CLIENT_ID || !DATABASE_URL) {
   } catch (e) {
     console.log("ℹ️ Running via environment variables.");
   }
+}
 
-  // Initialize DisTube Music Player Instance
-const distube = new DisTube(client, {
-  emitNewSongOnly: true,
-  plugins: [new YouTubePlugin(), new SpotifyPlugin()]
+// Initialize Database Connection Pool
+const pool = new Pool({
+  connectionString: DATABASE_URL,
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
 });
 
 // Database Helper Functions
@@ -69,44 +64,13 @@ const client = new Client({
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMessageReactions,
-    GatewayIntentBits.GuildVoiceStates // Required for voice connection audio tracks
+    GatewayIntentBits.GuildMessageReactions 
   ],
   partials: [
     Partials.Message, 
     Partials.Channel, 
     Partials.Reaction 
   ]
-});
-
-// Initialize DisTube Music Player Instance
-const distube = new DisTube(client, {
-  leaveOnEmpty: true,
-  leaveOnFinish: true, // Disconnects from the VC automatically when done
-  emitNewSongOnly: true,
-  plugins: [new YouTubePlugin(), new SpotifyPlugin()]
-});
-
-// --- DISTUBE MUSIC LOGGER EVENTS ---
-distube.on('playSong', (queue, song) => {
-  const logChannel = queue.textChannel.guild.channels.cache.get(MUSIC_LOGS_CHANNEL_ID);
-  if (logChannel) {
-    logChannel.send(`**Now Playing:** [${song.name}](${song.url}) | Requested by: <@${song.user.id}>`);
-  }
-});
-
-distube.on('finishSong', (queue, song) => {
-  const logChannel = queue.textChannel.guild.channels.cache.get(MUSIC_LOGS_CHANNEL_ID);
-  if (logChannel) {
-    logChannel.send(`**Finished:** "${song.name}" has finished playing.`);
-  }
-});
-
-distube.on('disconnect', (queue) => {
-  const logChannel = queue.textChannel.guild.channels.cache.get(MUSIC_LOGS_CHANNEL_ID);
-  if (logChannel) {
-    logChannel.send(`**Disconnected:** Left the Voice Channel because the queue ended or bot was stopped.`);
-  }
 });
 
 const cooldowns = new Collection();
@@ -157,20 +121,6 @@ const commands = [
     ]
   },
   {
-    name: 'play',
-    description: 'Play music from a URL in your voice channel',
-    options: [
-      {
-        name: 'url',
-        type: ApplicationCommandOptionType.String,
-        description: 'The YouTube, Spotify, or direct media link to play',
-        required: true
-      }
-    ]
-  },
-  { name: 'stop', description: 'Stop the music and disconnect the bot from voice' },
-  { name: 'nowplaying', description: 'See information about the current track' },
-  {
     name: 'mod',
     description: 'Staff moderation tools',
     options: [
@@ -206,7 +156,7 @@ const commands = [
   }
 ];
 
-const statuses = ["Making Some Noise"];
+const statuses = ["Making Some Noise",];
 
 // 5. Ready Event Handler
 client.once('ready', async () => {
@@ -329,7 +279,7 @@ client.on('guildMemberAdd', async member => {
       await member.roles.add(defaultRole);
     }
   } catch (error) {
-    // Left completely silent on success
+    // Left completely silent on success, only catches if Discord permissions fail
   }
 });
 
@@ -373,58 +323,6 @@ client.on('interactionCreate', async interaction => {
 
   if (!interaction.isChatInputCommand()) return;
   const { commandName, user } = interaction;
-
-  // --- MUSIC COMMAND PANEL ---
-  if (commandName === 'play') {
-    const voiceChannel = interaction.member.voice.channel;
-    if (!voiceChannel) {
-      return interaction.reply({ content: 'You must be in a Voice Channel to request music', ephemeral: true });
-    }
-
-    const query = interaction.options.getString('url');
-    await interaction.reply({ content: `Searching and loading: \`${query}\`...`, ephemeral: true });
-
-    try {
-      await distube.play(voiceChannel, query, {
-        textChannel: interaction.channel,
-        member: interaction.member,
-        metadata: { requestedBy: interaction.user }
-      });
-      await interaction.editReply(`Successfully added your request to the queue`);
-    } catch (error) {
-      console.error(error);
-      await interaction.editReply('Failed to extract stream path. Make sure the URL is public');
-    }
-  }
-
-  if (commandName === 'stop') {
-    const queue = distube.getQueue(interaction.guildId);
-    if (!queue) return interaction.reply({ content: 'There is nothing playing right now', ephemeral: true });
-
-    queue.stop();
-    await distube.voices.leave(interaction.guildId);
-    return await interaction.reply({ content: 'Stopped playback and successfully cleared the Voice Channel session', ephemeral: true });
-  }
-
-  if (commandName === 'nowplaying') {
-    const queue = distube.getQueue(interaction.guildId);
-    if (!queue || !queue.songs.length) {
-      return interaction.reply({ content: 'No streams are currently active', ephemeral: true });
-    }
-
-    const currentSong = queue.songs[0];
-    const embed = new EmbedBuilder()
-      .setTitle('Currently Playing')
-      .setDescription(`**Track:** [${currentSong.name}](${currentSong.url})\n**Duration:** \`${currentSong.formattedDuration}\``)
-      .addFields(
-        { name: 'Source / Artist', value: currentSong.uploader.name || 'Unknown Provider', inline: true },
-        { name: 'Requested By', value: `<@${currentSong.user.id}>`, inline: true }
-      )
-      .setThumbnail(currentSong.thumbnail)
-      .setColor('#1DB954');
-
-    return await interaction.reply({ embeds: [embed], ephemeral: true });
-  }
 
   // --- MODERATION PANEL COMMAND ---
   if (commandName === 'mod') {
@@ -540,7 +438,7 @@ client.on('interactionCreate', async interaction => {
     }
 
     const amount = interaction.options.getInteger('amount');
-    const LOG_CHANNEL_ID = '1396953023426727998'; 
+    const LOG_CHANNEL_ID = '1396953023426727998'; // Uses your set log channel ID
     const logChannel = interaction.guild.channels.cache.get(LOG_CHANNEL_ID);
 
     if (amount < 1 || amount > 100) {
@@ -555,6 +453,7 @@ client.on('interactionCreate', async interaction => {
     try {
       const deleted = await interaction.channel.bulkDelete(amount, true);
       
+      // Send a clean log embed to the logging channel
       const logEmbed = new EmbedBuilder()
         .setTitle('Messages Purged')
         .addFields(
@@ -578,11 +477,11 @@ client.on('interactionCreate', async interaction => {
     }
   }
 
-  // --- QUOTE COMMAND ---
+// --- QUOTE COMMAND ---
   if (commandName === 'quote') {
     const messageId = interaction.options.getString('message_id');
 
-    await interaction.deferReply(); 
+    await interaction.deferReply(); // Image rendering takes a split second
 
     try {
       const targetMessage = await interaction.channel.messages.fetch(messageId);
@@ -593,23 +492,29 @@ client.on('interactionCreate', async interaction => {
         });
       }
 
+      // 1. Create a canvas layout (800x400 landscape format)
       const canvas = createCanvas(800, 400);
       const ctx = canvas.getContext('2d');
 
+      // Fill solid black background
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+      // 2. Load and draw the User's Avatar with a smooth fade-to-black gradient
       const avatarUrl = targetMessage.author.displayAvatarURL({ extension: 'png', size: 512 });
       const avatarImage = await loadImage(avatarUrl);
       
+      // Draw avatar on the left half
       ctx.drawImage(avatarImage, 0, 0, 400, 400);
 
+      // Apply a horizontal black gradient mask over the avatar to fade it out smoothly
       const gradient = ctx.createLinearGradient(150, 0, 400, 0);
       gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
       gradient.addColorStop(1, 'rgba(0, 0, 0, 1)');
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, 400, 400);
 
+// 3. Render the Quote Text (Centered with Advanced Auto-Resizing & Safety Cap)
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -618,6 +523,7 @@ client.on('interactionCreate', async interaction => {
       const maxWidth = 350;
       const xPos = 600; 
 
+      // 1. Initial wrap calculation at standard 32px size
       ctx.font = '32px "CustomArial"';
       let line = '';
       let lines = [];
@@ -633,24 +539,30 @@ client.on('interactionCreate', async interaction => {
       }
       lines.push(line.trim());
 
+      // 2. Advanced multi-tier font size checking
       let fontSize = 32;
       let lineSpacing = 42;
       let startY = 160;
 
+      // Check how many lines were generated and scale down dynamically
       if (lines.length > 8) {
+        // ULTRA LONG TEXT -> Drop to 14px small font
         fontSize = 14;
         lineSpacing = 18;
         startY = 60; 
       } else if (lines.length > 5) {
+        // Very Long Text -> 20px
         fontSize = 20;
         lineSpacing = 26;
         startY = 100;
       } else if (lines.length > 3) {
+        // Medium Text -> 26px
         fontSize = 26;
         lineSpacing = 34;
         startY = 130;
       }
 
+      // 3. Re-calculate text wrapping based on chosen final font size
       ctx.font = `${fontSize}px "CustomArial"`;
       line = '';
       lines = [];
@@ -666,18 +578,22 @@ client.on('interactionCreate', async interaction => {
       }
       lines.push(line.trim());
 
+      // 4. HARD SAFETY LIMIT: If it STILL exceeds what can fit on screen, clip it safely
       const maxAllowedLines = fontSize === 14 ? 14 : (fontSize === 20 ? 9 : 6);
       if (lines.length > maxAllowedLines) {
         lines = lines.slice(0, maxAllowedLines);
+        // Add an ellipsis to the last visible line so users know it was cut off
         lines[lines.length - 1] = lines[lines.length - 1].replace(/[\s,.-]+$/, "") + "...";
       }
 
+      // Draw each line of text cleanly
       let yPos = startY;
       lines.forEach((textLine) => {
         ctx.fillText(textLine, xPos, yPos);
         yPos += lineSpacing;
       });
 
+      // 5. Render Author Details (Dynamically follows the end of the text block)
       yPos += 20; 
       ctx.fillStyle = '#aaaaaa';
       ctx.font = 'italic 22px "CustomArial"';
@@ -690,9 +606,11 @@ client.on('interactionCreate', async interaction => {
       ctx.textAlign = 'center';
       ctx.fillText(`@${targetMessage.author.username}`, xPos, yPos);
       
+      // 5. Convert canvas matrix into a Discord attachment file
       const buffer = canvas.toBuffer('image/png');
       const attachment = new AttachmentBuilder(buffer, { name: `quote_${targetMessage.id}.png` });
 
+      // Post the image file directly to the channel
       return await interaction.editReply({ files: [attachment] });
 
     } catch (error) {
@@ -896,5 +814,3 @@ client.on('messageReactionRemove', async (reaction, user) => {
 });
 
 client.login(TOKEN);
-
-//© 2026 AIDAN Industries. All rights reserved. This code and its contents are the intellectual property of AIDAN Industries. Unauthorized copying, redistribution, or claiming this code as your own is prohibited. 
