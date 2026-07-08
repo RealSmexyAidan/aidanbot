@@ -8,10 +8,13 @@
     "start": "node index.js"
   },
   "dependencies": {
+    "@distube/spotify": "^1.5.1",
+    "@distube/youtube": "^1.0.2",
+    "@napi-rs/canvas": "^0.1.5",
     "discord.js": "^14.16.3",
+    "distube": "^5.0.3",
     "express": "^4.19.2",
     "fs-extra": "^11.2.0",
-    "@napi-rs/canvas": "^0.1.5",
     "pg": "^8.11.5"
   }
 }
