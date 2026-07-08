@@ -33,12 +33,11 @@ if (!TOKEN || !CLIENT_ID || !DATABASE_URL) {
   } catch (e) {
     console.log("ℹ️ Running via environment variables.");
   }
-}
 
-// Initialize Database Connection Pool
-const pool = new Pool({
-  connectionString: DATABASE_URL,
-  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
+  // Initialize DisTube Music Player Instance
+const distube = new DisTube(client, {
+  emitNewSongOnly: true,
+  plugins: [new YouTubePlugin(), new SpotifyPlugin()]
 });
 
 // Database Helper Functions
