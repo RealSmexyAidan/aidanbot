@@ -5,11 +5,10 @@
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
-    "start": "node index.js",
-    "install": "npm install --legacy-peer-deps"
+    "start": "node index.js"
   },
   "dependencies": {
-    "@distube/spotify": "^1.5.1",
+    "@distube/spotify": "^2.0.1",
     "@distube/youtube": "^1.0.2",
     "@napi-rs/canvas": "^0.1.5",
     "discord.js": "^14.16.3",
