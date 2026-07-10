@@ -357,7 +357,7 @@ client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
   const { commandName, user } = interaction;
 
-  // --- MUSIC PLAY COMMAND ---
+// --- MUSIC PLAY COMMAND ---
   if (commandName === 'play') {
     const voiceChannel = interaction.member.voice.channel;
     if (!voiceChannel) {
@@ -368,34 +368,52 @@ client.on('interactionCreate', async interaction => {
     await interaction.deferReply();
 
     try {
-      await distube.play(voiceChannel, query, {
+      // Bypasses DisTube's standard lookup and fetches via play-dl stream validation directly
+      let searchResults = await playdl.search(query, { limit: 1 });
+      if (!searchResults || searchResults.length === 0) {
+        return await interaction.editReply({ content: `No results found for: **${query}**` });
+      }
+      
+      const trackUrl = searchResults[0].url;
+
+      await distube.play(voiceChannel, trackUrl, {
         textChannel: interaction.channel,
         member: interaction.member
       });
-      return await interaction.editReply({ content: `Searching and adding **${query}** to the queue...` });
+      
+      return await interaction.editReply({ content: `Added **${searchResults[0].title}** to the queue.` });
     } catch (error) {
-      console.error(error);
-      return await interaction.editReply({ content: 'There was an error trying to play that track. Make sure the URL is valid.' });
+      console.error("Play Command Error:", error);
+      return await interaction.editReply({ content: 'There was an error parsing the stream. Try a different search query text!', ephemeral: true });
     }
-  }
 
-  // --- MUSIC STOP COMMAND ---
+// --- MUSIC STOP COMMAND ---
   if (commandName === 'stop') {
     const queue = distube.getQueue(interaction.guildId);
     if (!queue) return await interaction.reply({ content: 'There is no music playing right now.', ephemeral: true });
 
-    await distube.stop(interaction.guildId);
-    return await interaction.reply({ content: 'Music stopped, queue cleared, and left the voice channel.' });
+    try {
+      await distube.stop(interaction.guildId);
+      // Explicitly force the voice connection to disconnect safely
+      const voiceChannel = interaction.member.voice.channel;
+      if (voiceChannel) {
+        distube.voices.leave(interaction.guildId);
+      }
+      return await interaction.reply({ content: 'Music stopped, queue cleared, and left the voice channel.' });
+    } catch (error) {
+      console.error("Stop Command Error:", error);
+      return await interaction.reply({ content: 'Stopped the queue and disconnected.', ephemeral: true });
+    }
   }
 
-  // --- MUSIC NOWPLAYING COMMAND ---
+  // --- MUSIC NOW PLAYING COMMAND ---
   if (commandName === 'nowplaying') {
     const queue = distube.getQueue(interaction.guildId);
     if (!queue) return await interaction.reply({ content: 'There is no music playing right now.', ephemeral: true });
 
     const song = queue.songs[0];
     const npEmbed = new EmbedBuilder()
-      .setTitle('🎵 Now Playing')
+      .setTitle('Now Playing')
       .setDescription(`[${song.name}](${song.url})`)
       .addFields(
         { name: 'Duration', value: `\`${song.formattedDuration}\``, inline: true },
