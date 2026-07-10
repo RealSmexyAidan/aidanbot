@@ -61,7 +61,7 @@ async function getUserData(userId) {
 }
 
 // 3. Create Bot Client Instance with Voice Support
-const client = new Client({ 
+const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
@@ -71,16 +71,20 @@ const client = new Client({
     GatewayIntentBits.GuildVoiceStates // Required for Music features
   ],
   partials: [
-    Partials.Message, 
-    Partials.Channel, 
-    Partials.Reaction 
+    Partials.Message,
+    Partials.Channel,
+    Partials.Reaction
   ]
 });
+
+// --- NEW CONFIG FOR SECTION 3 UPGRADES ---
+const { YouTubePlugin } = require('@distube/youtube');
+const { SpotifyPlugin } = require('@distube/spotify');
 
 // Initialize DisTube for Audio Playback
 const distube = new DisTube(client, {
   emitNewSongOnly: true,
-  plugins: [new SpotifyPlugin(), new YtDlpPlugin()]
+  plugins: [new YouTubePlugin(), new SpotifyPlugin()]
 });
 
 const cooldowns = new Collection();
