@@ -84,11 +84,7 @@ const playdl = require('play-dl');
 const distube = new DisTube(client, {
   emitNewSongOnly: true,
   plugins: [
-    new YouTubePlugin({
-      stream: async (video, options) => {
-        return (await playdl.stream(video.url, { quality: 1 })).stream;
-      }
-    }), 
+    new YouTubePlugin(), 
     new SpotifyPlugin()
   ]
 });
