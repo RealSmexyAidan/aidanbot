@@ -3,6 +3,9 @@ const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ApplicationComman
 const express = require('express');
 const { Pool } = require('pg');
 const path = require('path');
+const { DisTube } = require('distube');
+const { SpotifyPlugin } = require('@distube/spotify');
+const { YtDlpPlugin } = require('@distube/yt-dlp');
 
 // Register the exact font filename you uploaded
 GlobalFonts.registerFromPath(path.join(__dirname, 'ARIAL.TTF'), 'CustomArial');
@@ -57,20 +60,29 @@ async function getUserData(userId) {
   return res.rows[0];
 }
 
-// 3. Create Bot Client Instance
+// 3. Create Bot Client Instance with Voice Support
 const client = new Client({ 
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMessageReactions 
+    GatewayIntentBits.GuildMessageReactions,
+    GatewayIntentBits.GuildVoiceStates // Required for Music features
   ],
   partials: [
     Partials.Message, 
     Partials.Channel, 
     Partials.Reaction 
   ]
+});
+
+// Initialize DisTube for Audio Playback
+const distube = new DisTube(client, {
+  leaveOnEmpty: true,
+  leaveOnFinish: true,
+  emitNewSongOnly: true,
+  plugins: [new SpotifyPlugin(), new YtDlpPlugin()]
 });
 
 const cooldowns = new Collection();
@@ -121,6 +133,13 @@ const commands = [
     ]
   },
   {
+    name: 'play',
+    description: 'Play a song or playlist from YouTube/Spotify',
+    options: [{ name: 'query', type: ApplicationCommandOptionType.String, description: 'The song name or YouTube/Spotify URL', required: true }]
+  },
+  { name: 'stop', description: 'Stops the music, clears the queue, and leaves the voice channel' },
+  { name: 'nowplaying', description: 'See what song is currently playing' },
+  {
     name: 'mod',
     description: 'Staff moderation tools',
     options: [
@@ -156,7 +175,7 @@ const commands = [
   }
 ];
 
-const statuses = ["Making Some Noise",];
+const statuses = ["Making Some Noise"];
 
 // 5. Ready Event Handler
 client.once('ready', async () => {
@@ -237,7 +256,7 @@ client.on('messageCreate', async message => {
     try {
       const member = await message.guild.members.fetch(userId);
       
-if (newLevel >= 50) {
+      if (newLevel >= 50) {
         const role = message.guild.roles.cache.get('1505615177972846682'); 
         if (role && !member.roles.cache.has(role.id)) await member.roles.add(role);
       } else if (newLevel >= 25) {
@@ -270,16 +289,16 @@ client.on('guildMemberAdd', async member => {
       .setDescription(`<@${member.id}> has crossed the Aidan wall. Welcome to Aidansville!`)
       .setColor('#2b2d31');
     channel.send({ embeds: [welcomeEmbed] });
- }
+  }
 
   // Automatically assign the default member role on join
   try {
-    const defaultRole = member.guild.roles.cache.get('1397383481465507861'); // Uses your role ID
+    const defaultRole = member.guild.roles.cache.get('1397383481465507861'); 
     if (defaultRole) {
       await member.roles.add(defaultRole);
     }
   } catch (error) {
-    // Left completely silent on success, only catches if Discord permissions fail
+    // Fail silently on server hierarchy restrictions
   }
 });
 
@@ -324,11 +343,61 @@ client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
   const { commandName, user } = interaction;
 
+  // --- MUSIC PLAY COMMAND ---
+  if (commandName === 'play') {
+    const voiceChannel = interaction.member.voice.channel;
+    if (!voiceChannel) {
+      return await interaction.reply({ content: 'You must be in a voice channel to play music.', ephemeral: true });
+    }
+
+    const query = interaction.options.getString('query');
+    await interaction.deferReply();
+
+    try {
+      await distube.play(voiceChannel, query, {
+        textChannel: interaction.channel,
+        member: interaction.member
+      });
+      return await interaction.editReply({ content: `Searching and adding **${query}** to the queue...` });
+    } catch (error) {
+      console.error(error);
+      return await interaction.editReply({ content: 'There was an error trying to play that track. Make sure the URL is valid.' });
+    }
+  }
+
+  // --- MUSIC STOP COMMAND ---
+  if (commandName === 'stop') {
+    const queue = distube.getQueue(interaction.guildId);
+    if (!queue) return await interaction.reply({ content: 'There is no music playing right now.', ephemeral: true });
+
+    await distube.stop(interaction.guildId);
+    return await interaction.reply({ content: 'Music stopped, queue cleared, and left the voice channel.' });
+  }
+
+  // --- MUSIC NOWPLAYING COMMAND ---
+  if (commandName === 'nowplaying') {
+    const queue = distube.getQueue(interaction.guildId);
+    if (!queue) return await interaction.reply({ content: 'There is no music playing right now.', ephemeral: true });
+
+    const song = queue.songs[0];
+    const npEmbed = new EmbedBuilder()
+      .setTitle('🎵 Now Playing')
+      .setDescription(`[${song.name}](${song.url})`)
+      .addFields(
+        { name: 'Duration', value: `\`${song.formattedDuration}\``, inline: true },
+        { name: 'Requested By', value: `${song.user}`, inline: true }
+      )
+      .setThumbnail(song.thumbnail)
+      .setColor('#2b2d31');
+
+    return await interaction.reply({ embeds: [npEmbed] });
+  }
+
   // --- MODERATION PANEL COMMAND ---
   if (commandName === 'mod') {
     if (!interaction.member.permissions.has('ModerateMembers')) {
       return await interaction.reply({ 
-        content: 'You do not have permission to use moderation commands', 
+        content: 'You do not have permission to use moderation commands.', 
         ephemeral: true 
       });
     }
@@ -347,7 +416,7 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (targetUser.id === interaction.user.id) {
-      return await interaction.reply({ content: 'You cannot moderate yourself silly', ephemeral: true });
+      return await interaction.reply({ content: 'You cannot moderate yourself.', ephemeral: true });
     }
 
     await interaction.deferReply({ ephemeral: true });
@@ -376,7 +445,7 @@ client.on('interactionCreate', async interaction => {
       const duration = interaction.options.getInteger('duration');
       
       if (!targetMember.moderatable) {
-        return await interaction.editReply({ content: 'You cannot time out users that are higher than you' });
+        return await interaction.editReply({ content: 'You cannot time out users that are higher than you.' });
       }
 
       try {
@@ -403,7 +472,7 @@ client.on('interactionCreate', async interaction => {
 
     if (subcommand === 'ban') {
       if (!targetMember.bannable) {
-        return await interaction.editReply({ content: 'You cannot time out users that are higher than you' });
+        return await interaction.editReply({ content: 'You cannot time out users that are higher than you.' });
       }
 
       try {
@@ -432,13 +501,13 @@ client.on('interactionCreate', async interaction => {
   if (commandName === 'purge') {
     if (!interaction.member.permissions.has('ManageMessages')) {
       return await interaction.reply({ 
-        content: 'You do not have permission to use the purge command', 
+        content: 'You do not have permission to use the purge command.', 
         ephemeral: true 
       });
     }
 
     const amount = interaction.options.getInteger('amount');
-    const LOG_CHANNEL_ID = '1396953023426727998'; // Uses your set log channel ID
+    const LOG_CHANNEL_ID = '1396953023426727998'; 
     const logChannel = interaction.guild.channels.cache.get(LOG_CHANNEL_ID);
 
     if (amount < 1 || amount > 100) {
@@ -453,7 +522,6 @@ client.on('interactionCreate', async interaction => {
     try {
       const deleted = await interaction.channel.bulkDelete(amount, true);
       
-      // Send a clean log embed to the logging channel
       const logEmbed = new EmbedBuilder()
         .setTitle('Messages Purged')
         .addFields(
@@ -467,54 +535,46 @@ client.on('interactionCreate', async interaction => {
       if (logChannel) logChannel.send({ embeds: [logEmbed] });
 
       return await interaction.editReply({ 
-        content: `Successfully cleared \`${deleted.size}\` messages from this channel` 
+        content: `Successfully cleared \`${deleted.size}\` messages from this channel.` 
       });
     } catch (error) {
       console.error('Error purging messages:', error);
       return await interaction.editReply({ 
-        content: 'There was an error trying to purge messages in this channel (Messages older than 14 days cannot be purged)' 
+        content: 'There was an error trying to purge messages in this channel. (Messages older than 14 days cannot be purged)' 
       });
     }
   }
 
-// --- QUOTE COMMAND ---
+  // --- QUOTE COMMAND ---
   if (commandName === 'quote') {
     const messageId = interaction.options.getString('message_id');
-
-    await interaction.deferReply(); // Image rendering takes a split second
+    await interaction.deferReply(); 
 
     try {
       const targetMessage = await interaction.channel.messages.fetch(messageId);
       
       if (!targetMessage.content) {
         return await interaction.editReply({ 
-          content: 'That message does not contain any text to quote' 
+          content: 'That message does not contain any text to quote.' 
         });
       }
 
-      // 1. Create a canvas layout (800x400 landscape format)
       const canvas = createCanvas(800, 400);
       const ctx = canvas.getContext('2d');
 
-      // Fill solid black background
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // 2. Load and draw the User's Avatar with a smooth fade-to-black gradient
       const avatarUrl = targetMessage.author.displayAvatarURL({ extension: 'png', size: 512 });
       const avatarImage = await loadImage(avatarUrl);
-      
-      // Draw avatar on the left half
       ctx.drawImage(avatarImage, 0, 0, 400, 400);
 
-      // Apply a horizontal black gradient mask over the avatar to fade it out smoothly
       const gradient = ctx.createLinearGradient(150, 0, 400, 0);
       gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
       gradient.addColorStop(1, 'rgba(0, 0, 0, 1)');
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, 400, 400);
 
-// 3. Render the Quote Text (Centered with Advanced Auto-Resizing & Safety Cap)
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -523,7 +583,6 @@ client.on('interactionCreate', async interaction => {
       const maxWidth = 350;
       const xPos = 600; 
 
-      // 1. Initial wrap calculation at standard 32px size
       ctx.font = '32px "CustomArial"';
       let line = '';
       let lines = [];
@@ -539,30 +598,24 @@ client.on('interactionCreate', async interaction => {
       }
       lines.push(line.trim());
 
-      // 2. Advanced multi-tier font size checking
       let fontSize = 32;
       let lineSpacing = 42;
       let startY = 160;
 
-      // Check how many lines were generated and scale down dynamically
       if (lines.length > 8) {
-        // ULTRA LONG TEXT -> Drop to 14px small font
         fontSize = 14;
         lineSpacing = 18;
         startY = 60; 
       } else if (lines.length > 5) {
-        // Very Long Text -> 20px
         fontSize = 20;
         lineSpacing = 26;
         startY = 100;
       } else if (lines.length > 3) {
-        // Medium Text -> 26px
         fontSize = 26;
         lineSpacing = 34;
         startY = 130;
       }
 
-      // 3. Re-calculate text wrapping based on chosen final font size
       ctx.font = `${fontSize}px "CustomArial"`;
       line = '';
       lines = [];
@@ -578,22 +631,18 @@ client.on('interactionCreate', async interaction => {
       }
       lines.push(line.trim());
 
-      // 4. HARD SAFETY LIMIT: If it STILL exceeds what can fit on screen, clip it safely
       const maxAllowedLines = fontSize === 14 ? 14 : (fontSize === 20 ? 9 : 6);
       if (lines.length > maxAllowedLines) {
         lines = lines.slice(0, maxAllowedLines);
-        // Add an ellipsis to the last visible line so users know it was cut off
         lines[lines.length - 1] = lines[lines.length - 1].replace(/[\s,.-]+$/, "") + "...";
       }
 
-      // Draw each line of text cleanly
       let yPos = startY;
       lines.forEach((textLine) => {
         ctx.fillText(textLine, xPos, yPos);
         yPos += lineSpacing;
       });
 
-      // 5. Render Author Details (Dynamically follows the end of the text block)
       yPos += 20; 
       ctx.fillStyle = '#aaaaaa';
       ctx.font = 'italic 22px "CustomArial"';
@@ -606,17 +655,15 @@ client.on('interactionCreate', async interaction => {
       ctx.textAlign = 'center';
       ctx.fillText(`@${targetMessage.author.username}`, xPos, yPos);
       
-      // 5. Convert canvas matrix into a Discord attachment file
       const buffer = canvas.toBuffer('image/png');
       const attachment = new AttachmentBuilder(buffer, { name: `quote_${targetMessage.id}.png` });
 
-      // Post the image file directly to the channel
       return await interaction.editReply({ files: [attachment] });
 
     } catch (error) {
       console.error('Error generating quote image:', error);
       return await interaction.editReply({ 
-        content: 'Could not find that message. Make sure the ID is correct and from this channel' 
+        content: 'Could not find that message. Make sure the ID is correct and from this channel.' 
       });
     }
   }
@@ -676,7 +723,7 @@ client.on('interactionCreate', async interaction => {
 
     const lbEmbed = new EmbedBuilder()
       .setTitle('Aidansville Level Leaderboard')
-      .setDescription(description || 'No one has earned XP yet!')
+      .setDescription(description || 'No one has earned XP yet.')
       .setColor('#2b2d31')
       .setThumbnail(interaction.guild.iconURL());
 
@@ -703,7 +750,7 @@ client.on('interactionCreate', async interaction => {
       .setDescription(`<@${interaction.user.id}> flipped a coin and got... **${result}**`)
       .setColor('#2b2d31');
 
-    return await interaction.reply({ embeds: [coinEmbed] });
+    return await interaction.reply({ coinEmbed });
   }
 
   // --- PING COMMAND ---
@@ -811,6 +858,14 @@ client.on('messageReactionRemove', async (reaction, user) => {
   } catch (error) {
     console.error('Error removing reaction role:', error);
   }
+});
+
+// --- DISTUBE OPTIONAL STATUS EMBED FEEDBACK ---
+distube.on('playSong', (queue, song) => {
+  const playEmbed = new EmbedBuilder()
+    .setDescription(`Now playing: **[${song.name}](${song.url})** - \`${song.formattedDuration}\``)
+    .setColor('#2b2d31');
+  queue.textChannel.send({ embeds: [playEmbed] });
 });
 
 client.login(TOKEN);
