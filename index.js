@@ -79,8 +79,6 @@ const client = new Client({
 
 // Initialize DisTube for Audio Playback
 const distube = new DisTube(client, {
-  leaveOnEmpty: true,
-  leaveOnFinish: true,
   emitNewSongOnly: true,
   plugins: [new SpotifyPlugin(), new YtDlpPlugin()]
 });
