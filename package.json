@@ -21,6 +21,7 @@
     "ffmpeg-static": "^5.2.0",
     "fs-extra": "^11.2.0",
     "libsodium-wrappers": "^0.7.15",
-    "pg": "^8.11.5"
+    "pg": "^8.11.5",
+    "play-dl": "^1.9.7"
   }
 }
