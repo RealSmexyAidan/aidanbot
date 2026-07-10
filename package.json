@@ -13,7 +13,7 @@
 "dependencies": {
     "@discordjs/voice": "^0.17.0",
     "@distube/spotify": "^2.0.1",
-    "@distube/youtube": "^2.1.1",
+    "@distube/youtube": "latest",
     "@napi-rs/canvas": "^0.1.5",
     "discord.js": "^14.16.3",
     "distube": "^5.0.3",
