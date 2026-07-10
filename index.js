@@ -156,7 +156,7 @@ const commands = [
   }
 ];
 
-const statuses = ["Making Some Noise",];
+const statuses = ["Making Some Noise","Watching Aidansville"];
 
 // 5. Ready Event Handler
 client.once('ready', async () => {
