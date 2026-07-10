@@ -388,7 +388,8 @@ client.on('interactionCreate', async interaction => {
       console.error("Play Command Error:", error);
       return await interaction.editReply({ content: 'There was an error parsing the stream. Try a different search query text!', ephemeral: true });
     }
-
+}
+  
 // --- MUSIC STOP COMMAND ---
   if (commandName === 'stop') {
     const queue = distube.getQueue(interaction.guildId);
