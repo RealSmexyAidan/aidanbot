@@ -4,8 +4,6 @@ const express = require('express');
 const { Pool } = require('pg');
 const path = require('path');
 const { DisTube } = require('distube');
-const { SpotifyPlugin } = require('@distube/spotify');
-const { YtDlpPlugin } = require('@distube/yt-dlp');
 
 // Register the exact font filename you uploaded
 GlobalFonts.registerFromPath(path.join(__dirname, 'ARIAL.TTF'), 'CustomArial');
@@ -80,11 +78,25 @@ const client = new Client({
 // --- NEW CONFIG FOR SECTION 3 UPGRADES ---
 const { YouTubePlugin } = require('@distube/youtube');
 const { SpotifyPlugin } = require('@distube/spotify');
+const playdl = require('play-dl');
 
-// Initialize DisTube for Audio Playback
+// Initialize DisTube for Audio Playback with play-dl bypass routing
 const distube = new DisTube(client, {
   emitNewSongOnly: true,
-  plugins: [new YouTubePlugin(), new SpotifyPlugin()]
+  plugins: [
+    new YouTubePlugin({
+      streamType: 'ext' // Forces the extractor to route through play-dl backends
+    }), 
+    new SpotifyPlugin()
+  ]
+});
+
+// DisTube Global Error Handling Event Listener
+distube.on('error', (channel, error) => {
+  console.error(`DisTube Error Captured: ${error.message}`);
+  if (channel) {
+    channel.send(`❌ Couldn't play that track format or it's age-restricted. Try a regular audio track search query!`);
+  }
 });
 
 const cooldowns = new Collection();
@@ -177,7 +189,7 @@ const commands = [
   }
 ];
 
-const statuses = ["Making Some Noise"];
+const statuses = ["Watching Aidansville, Made by Aidan"];
 
 // 5. Ready Event Handler
 client.once('ready', async () => {
@@ -752,7 +764,7 @@ client.on('interactionCreate', async interaction => {
       .setDescription(`<@${interaction.user.id}> flipped a coin and got... **${result}**`)
       .setColor('#2b2d31');
 
-    return await interaction.reply({ coinEmbed });
+    return await interaction.reply({ embeds: [coinEmbed] });
   }
 
   // --- PING COMMAND ---
@@ -871,4 +883,4 @@ distube.on('playSong', (queue, song) => {
 });
 
 client.login(TOKEN);
-// © 2026 AIDAN Industries. All rights reserved. This code and its contents are the intellectual property of AIDAN Industries. Unauthorized copying,  redistribution, or claiming this code as your own is prohibited.
+// © 2026 AIDAN Industries. All rights reserved. This code and its contents are the intellectual property of AIDAN Industries. Unauthorized copying, redistribution, or claiming this code as your own is prohibited.
