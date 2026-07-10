@@ -86,7 +86,9 @@ const distube = new DisTube(client, {
   plugins: [
     new YouTubePlugin(), 
     new SpotifyPlugin()
-  ]
+  ],
+  // This tells DisTube to use play-dl under the hood automatically
+  streamType: 0 
 });
 
 // DisTube Global Error Handling Event Listener
@@ -187,7 +189,7 @@ const commands = [
   }
 ];
 
-const statuses = ["Watching Aidansville, Made by Aidan"];
+const statuses = ["Watching Aidansville" , "Made by Aidan"];
 
 // 5. Ready Event Handler
 client.once('ready', async () => {
