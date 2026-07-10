@@ -1,4 +1,16 @@
-"dependencies": {
+{
+  "name": "aidan-bot",
+  "version": "1.0.0",
+  "description": "Discord Bot for Aidansville",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": "20.x"
+  },
+  "dependencies": {
     "@discordjs/opus": "^0.9.0",
     "@discordjs/voice": "^0.17.0",
     "@distube/spotify": "^1.5.1",
@@ -11,3 +23,4 @@
     "fs-extra": "^11.2.0",
     "pg": "^8.11.5"
   }
+}
