@@ -80,12 +80,12 @@ const { YouTubePlugin } = require('@distube/youtube');
 const { SpotifyPlugin } = require('@distube/spotify');
 const playdl = require('play-dl');
 
-// Initialize DisTube for Audio Playback with play-dl bypass routing
+// Initialize DisTube for Audio Playback
 const distube = new DisTube(client, {
   emitNewSongOnly: true,
   plugins: [
     new YouTubePlugin({
-      streamType: 'ext' // Forces the extractor to route through play-dl backends
+      streamType: 'ext' // Forces stream fetching to route through play-dl backends safely
     }), 
     new SpotifyPlugin()
   ]
@@ -95,7 +95,7 @@ const distube = new DisTube(client, {
 distube.on('error', (channel, error) => {
   console.error(`DisTube Error Captured: ${error.message}`);
   if (channel) {
-    channel.send(`❌ Couldn't play that track format or it's age-restricted. Try a regular audio track search query!`);
+    channel.send(`Couldn't play that track format or it's age-restricted. Try a regular audio track search query.`);
   }
 });
 
