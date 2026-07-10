@@ -869,3 +869,4 @@ distube.on('playSong', (queue, song) => {
 });
 
 client.login(TOKEN);
+// © 2026 AIDAN Industries. All rights reserved. This code and its contents are the intellectual property of AIDAN Industries. Unauthorized copying,  redistribution, or claiming this code as your own is prohibited.
