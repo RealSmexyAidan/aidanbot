@@ -85,7 +85,6 @@ const distube = new DisTube(client, {
   emitNewSongOnly: true,
   plugins: [
     new YouTubePlugin({
-      // In the latest v3 plugin, you pass the play-dl streaming function directly into the stream method
       stream: async (video, options) => {
         return (await playdl.stream(video.url, { quality: 1 })).stream;
       }
