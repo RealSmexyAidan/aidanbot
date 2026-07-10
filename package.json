@@ -10,8 +10,7 @@
   "engines": {
     "node": "20.x"
   },
-"dependencies": {
-    "@discordjs/opus": "^0.9.0",
+  "dependencies": {
     "@discordjs/voice": "^0.17.0",
     "@distube/spotify": "^2.0.1",
     "@distube/yt-dlp": "^2.0.1",
@@ -21,5 +20,7 @@
     "express": "^4.19.2",
     "ffmpeg-static": "^5.2.0",
     "fs-extra": "^11.2.0",
+    "libsodium-wrappers": "^0.7.15",
     "pg": "^8.11.5"
   }
+}
