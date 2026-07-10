@@ -237,7 +237,7 @@ client.on('messageCreate', async message => {
     try {
       const member = await message.guild.members.fetch(userId);
       
-      if (newLevel >= 50) {
+if (newLevel >= 50) {
         const role = message.guild.roles.cache.get('1505615177972846682'); 
         if (role && !member.roles.cache.has(role.id)) await member.roles.add(role);
       } else if (newLevel >= 25) {
@@ -246,9 +246,9 @@ client.on('messageCreate', async message => {
       } else if (newLevel >= 10) {
         const role = message.guild.roles.cache.get('1505614729651949771'); 
         if (role && !member.roles.cache.has(role.id)) await member.roles.add(role);
-      } if (newLevel >= 1) {
+      } else if (newLevel >= 1) {
         const role = message.guild.roles.cache.get('1520015021894144130'); 
-        else if (role && !member.roles.cache.has(role.id)) await member.roles.add(role);
+        if (role && !member.roles.cache.has(role.id)) await member.roles.add(role);
       }
     } catch (roleError) {
       console.error("Failed to assign role:", roleError);
