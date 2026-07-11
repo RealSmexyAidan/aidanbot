@@ -758,15 +758,13 @@ client.on('interactionCreate', async interaction => {
     return await interaction.reply({ embeds: [lbEmbed], components: [row] });
   }
   
-  // ----------------------------------------
+// ----------------------------------------
   // --- [ECONOMY]: COMMAND: DAILY ---
   // ----------------------------------------
   if (commandName === 'daily') {
     await interaction.deferReply({ ephemeral: true });
     
-    // If guildId was missing above, this helper function would stall forever
     const ecoData = await getEconomyData(user.id, guildId);
-    
     const DAILY_AMOUNT = Math.floor(Math.random() * 100) + 1;
     const cooldownTime = 24 * 60 * 60 * 1000; 
 
@@ -784,7 +782,9 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    await pool.query('UPDATE economy SET balance = balance + $1, last_daily = NOW() WHERE user_id = $2', [DAILY_AMOUNT, user.id]);
+    // Fixed: Added guildId constraint here
+    await pool.query('UPDATE economy SET balance = balance + $1, last_daily = NOW() WHERE user_id = $2 AND guild_id = $3', [DAILY_AMOUNT, user.id, guildId]);
+    
     const dailySuccessEmbed = new EmbedBuilder()
       .setDescription(`**+${DAILY_AMOUNT}** added to your account! Your new balance is **${Number(ecoData.balance) + DAILY_AMOUNT}**.`)
       .setColor('#2b2d31');
@@ -804,7 +804,6 @@ client.on('interactionCreate', async interaction => {
       .setDescription(`<@${targetUser.id}> currently holds **${ecoData.balance}**`)
       .setColor('#2b2d31');
     
-    // Public reply
     return await interaction.reply({ embeds: [balEmbed] });
   }
 
@@ -817,13 +816,11 @@ client.on('interactionCreate', async interaction => {
       return await interaction.reply({ content: 'You cannot rob yourself, genius.', ephemeral: true });
     }
 
-    // Public deferral so everyone sees the execution results
     await interaction.deferReply();
     const attackerEco = await getEconomyData(user.id, guildId);
     const victimEco = await getEconomyData(targetUser.id, guildId);
 
-    // --- 1 HOUR COOLDOWN CHECK ---
-    const stealCooldown = 60 * 60 * 1000; // 1 hour in milliseconds
+    const stealCooldown = 60 * 60 * 1000; 
     if (attackerEco.last_steal) {
       const lastStealTime = new Date(attackerEco.last_steal).getTime();
       if (now - lastStealTime < stealCooldown) {
@@ -842,19 +839,18 @@ client.on('interactionCreate', async interaction => {
       return await interaction.editReply({ content: `Leave them alone, <@${targetUser.id}> is broke right now!` });
     }
 
-    // Update the cooldown timestamp immediately
-    await pool.query('UPDATE economy SET last_steal = NOW() WHERE user_id = $1', [user.id]);
+    // Fixed: Added guildId constraint here
+    await pool.query('UPDATE economy SET last_steal = NOW() WHERE user_id = $1 AND guild_id = $2', [user.id, guildId]);
 
-    const success = Math.random() > 0.5; // 50% chance
+    const success = Math.random() > 0.5; 
     if (success) {
-      // Steals dynamically between 10% to 30% of their money
       const stealPercent = (Math.floor(Math.random() * 21) + 10) / 100;
       const stolenAmount = Math.floor(Number(victimEco.balance) * stealPercent);
 
-      await pool.query('UPDATE economy SET balance = balance + $1 WHERE user_id = $2', [stolenAmount, user.id]);
-      await pool.query('UPDATE economy SET balance = balance - $1 WHERE user_id = $2', [stolenAmount, targetUser.id]);
+      // Fixed: Added guildId constraints to both user queries here
+      await pool.query('UPDATE economy SET balance = balance + $1 WHERE user_id = $2 AND guild_id = $3', [stolenAmount, user.id, guildId]);
+      await pool.query('UPDATE economy SET balance = balance - $1 WHERE user_id = $2 AND guild_id = $3', [stolenAmount, targetUser.id, guildId]);
 
-      // Try to send a direct message to the victim
       try {
         await targetUser.send(`Someone stole **${stolenAmount}** from your wallet in **${interaction.guild.name}**.`);
       } catch (dmError) {
@@ -866,19 +862,18 @@ client.on('interactionCreate', async interaction => {
         .setColor('#2b2d31');
       return await interaction.editReply({ embeds: [robEmbed] });
     } else {
-      // Busted! Penalty of 100 Aidan-Bucks paid to the victim
       const fine = Math.min(100, Number(attackerEco.balance));
-      await pool.query('UPDATE economy SET balance = balance - $1 WHERE user_id = $2', [fine, user.id]);
-      await pool.query('UPDATE economy SET balance = balance + $1 WHERE user_id = $2', [fine, targetUser.id]);
+      
+      // Fixed: Added guildId constraints to both fine queries here
+      await pool.query('UPDATE economy SET balance = balance - $1 WHERE user_id = $2 AND guild_id = $3', [fine, user.id, guildId]);
+      await pool.query('UPDATE economy SET balance = balance + $1 WHERE user_id = $2 AND guild_id = $3', [fine, targetUser.id, guildId]);
 
-      // Array of funny failure scenarios
       const failureScenarios = [
         `<@${user.id}> tried to steal from <@${targetUser.id}> but tripped over a trash can. They paid a fine of **${fine}** to the victim.`,
         `<@${user.id}> sneezed incredibly loudly right into <@${targetUser.id}>'s ear while trying to be stealthy. They dropped **${fine}** while running away.`,
         `<@${user.id}> almost got away with it, but their light-up sneakers started flashing. They had to pay **${fine}** to clear their name.`
       ];
 
-      // Pick a random scenario from the list
       const randomScenario = failureScenarios[Math.floor(Math.random() * failureScenarios.length)];
 
       const bustedEmbed = new EmbedBuilder()
