@@ -325,41 +325,6 @@ client.on('messageCreate', async message => {
   setTimeout(() => xpCooldowns.delete(userId), 5000);
 }); 
 
-// ----------------------------------------
-// --- [MUSIC]: AUTO-LEAVE EMPTY VC ---
-// ----------------------------------------
-client.on('voiceStateUpdate', (oldState, newState) => {
-  // Check if the bot was connected to a channel in this server
-  const serverQueue = musicQueues.get(oldState.guild.id);
-  if (!serverQueue || !serverQueue.connection) return;
-
-  const botVoiceChannel = serverQueue.voiceChannel;
-
-  // Count how many non-bot users are left in that specific voice channel
-  const humanMembers = botVoiceChannel.members.filter(member => !member.user.bot);
-
-  // If there are 0 real users left in the channel, pack up and leave
-  if (humanMembers.size === 0) {
-    try {
-      // Clean up server queue data memory
-      musicQueues.delete(oldState.guild.id);
-      
-      // Send a message letting the channel know it left due to inactivity
-      serverQueue.textChannel.send({
-        embeds: [{
-          description: '👋 **Left the voice channel** because everyone left.',
-          color: 0x2b2d31
-        }]
-      }).catch(console.error);
-
-      // Safely disconnect
-      serverQueue.connection.destroy();
-    } catch (error) {
-      console.error('Error handling auto-leave:', error);
-    }
-  }
-});
-
 // ==========================================
 // === 7. WELCOMER SYSTEM MODULE ===
 // ==========================================
