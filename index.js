@@ -424,8 +424,19 @@ client.on('messageReactionRemove', async (reaction, user) => {
 // === 9. MAIN INTERACTION CREATE HANDLER ===
 // ==========================================
 client.on('interactionCreate', async interaction => {
-  
-  // ----------------------------------------
+  // 1. If you have custom button handler logic, keep it at the top
+  if (interaction.isButton()) {
+    // ... your button handling code (if any) ...
+    return;
+  }
+
+  // 2. Ignore anything that isn't a slash command
+  if (!interaction.isChatInputCommand()) return;
+
+  // 3. 💥 THE FIX: Pull the vital variables out of the interaction here!
+  const { commandName, user, guildId } = interaction;
+  const now = Date.now(); // Essential for your daily/steal cooldown tracking
+
   // --- BUTTON ACTIONS: LEADERBOARD ---
   // ----------------------------------------
   if (interaction.isButton()) {
