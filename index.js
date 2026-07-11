@@ -741,6 +741,8 @@ client.on('interactionCreate', async interaction => {
       .setColor('#2b2d31')
       .setThumbnail(interaction.guild.iconURL());
 
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('lb_levels').setLabel('Level Leaderboard').setStyle(ButtonStyle.Primary),
     );
 
     return await interaction.reply({ embeds: [lbEmbed], components: [row] });
@@ -787,4 +789,3 @@ client.on('interactionCreate', async interaction => {
   }
 });
 
-client.login(TOKEN);
