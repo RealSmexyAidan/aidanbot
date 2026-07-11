@@ -766,7 +766,8 @@ client.on('interactionCreate', async interaction => {
             selfDeaf: false,
           });
 
-          await entersState(connection, VoiceConnectionStatus.Ready, 15000);
+          // 30-second timeout to handle hosting platform lag safely
+          await entersState(connection, VoiceConnectionStatus.Ready, 30000);
 
           const player = createAudioPlayer();
           serverQueue.connection = connection;
@@ -782,12 +783,13 @@ client.on('interactionCreate', async interaction => {
               return;
             }
 
-            // Stream audio only with optimized buffer options to avoid data-center lag
+            // Using the TV client bypass options to dodge YouTube's cloud firewalls
             const stream = ytdl(activeSong.originalUrl, { 
               filter: 'audioonly', 
               highWaterMark: 1 << 25,
               quality: 'highestaudio',
-              liveBuffer: 40000
+              liveBuffer: 40000,
+              playerClients: ['TV']
             });
 
             const resource = createAudioResource(stream, { inputType: StreamType.Arbitrary });
@@ -797,7 +799,7 @@ client.on('interactionCreate', async interaction => {
               .setDescription(`Now playing: **[${activeSong.title}](${activeSong.originalUrl})**`)
               .setColor('#2b2d31');
             
-            serverQueue.textChannel.send({ embeds: [playEmbed] });
+              serverQueue.textChannel.send({ embeds: [playEmbed] });
           };
 
           await playSong(serverQueue.songs[0]);
@@ -816,9 +818,13 @@ client.on('interactionCreate', async interaction => {
           await interaction.editReply({ content: `Connected to **${voiceChannel.name}** and loading track.` });
 
         } catch (err) {
-          console.error(err);
+          console.error("Voice Connection Failed:", err);
+          // Clean up connection immediately so it doesn't get stuck in VC on error
+          if (serverQueue && serverQueue.connection) {
+            serverQueue.connection.destroy();
+          }
           musicQueues.delete(interaction.guild.id);
-          return await interaction.editReply({ content: 'Could not join the voice channel.' });
+          return await interaction.editReply({ content: 'Could not establish a stable connection to the voice channel in time.' });
         }
       } else {
         serverQueue.songs.push(song);
@@ -833,7 +839,7 @@ client.on('interactionCreate', async interaction => {
       await interaction.editReply({ content: 'I cannot read the link or extract stream.' });
     }
   }
-
+  
   // ----------------------------------------
   // --- [MUSIC]: COMMAND: STOP ---
   // ----------------------------------------
