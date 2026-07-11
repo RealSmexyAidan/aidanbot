@@ -70,16 +70,6 @@ if (!TOKEN || !CLIENT_ID || !DATABASE_URL) {
   }
 }
 
-// Auto-generate cookies.txt on Railway if the environment variable exists
-const fs = require('fs');
-if (process.env.YOUTUBE_COOKIES) {
-  try {
-    fs.writeFileSync(path.join(__dirname, 'cookies.txt'), process.env.YOUTUBE_COOKIES);
-    console.log("Successfully generated cookies.txt from environment variables.");
-  } catch (err) {
-    console.error("Failed to write cookies.txt:", err);
-  }
-}
 
 // ==========================================
 // === 2. DATABASE UTILITIES ===
@@ -722,60 +712,55 @@ client.on('interactionCreate', async interaction => {
       return await interaction.editReply({ content: 'Could not find that message. Make sure the ID is correct and from this channel.' });
     }
   }
+  
   // ----------------------------------------
   // --- [MUSIC]: COMMAND: PLAY ---
   // ----------------------------------------
   if (commandName === 'play') {
-    const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
-    const play = require('play-dl');
+    const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, entersState, StreamType } = require('@discordjs/voice');
+    const youtubedl = require('youtube-dl-exec');
 
-    const inputUrl = interaction.options.getString('link');
     const voiceChannel = interaction.member.voice.channel;
 
     if (!voiceChannel) {
-      return await interaction.reply({ content: 'You must be in a voice channel to use this command.', ephemeral: true });
+      return await interaction.reply({ content: 'YOU NEED TO BE IN A VC FIRST ', ephemeral: true });
     }
 
     await interaction.deferReply();
+    let audioUrl = interaction.options.getString('link');
+
+    if (!audioUrl) {
+      return await interaction.editReply({ content: 'GIVE ME A LINK' });
+    }
+
+    audioUrl = audioUrl.trim();
 
     try {
-      let trackTitle = "Unknown Track";
-      let streamUrl = "";
+      let trackTitle = "Unknown YouTube Track";
+      let streamUrl = audioUrl;
 
-      // Validate platform and extract data
-      const urlType = play.yt_validate(inputUrl);
-      const isSpotify = inputUrl.includes('spotify.com');
-
-      if (!urlType && !isSpotify) {
-        return await interaction.editReply({ content: 'Please provide a valid YouTube or Spotify link.' });
-      }
-
-      if (isSpotify) {
-        const spotifyData = await play.spotify(inputUrl);
+      // Extract details if it's a YouTube link
+      if (audioUrl.includes('youtube.com') || audioUrl.includes('youtu.be')) {
+        const output = await youtubedl(audioUrl, {
+          dumpSingleJson: true,
+          noWarnings: true,
+          preferFreeFormats: true,
+          youtubeSkipDashManifest: true,
+        });
         
-        if (spotifyData.type === 'track') {
-          trackTitle = `${spotifyData.name} - ${spotifyData.artists.map(a => a.name).join(', ')}`;
-          const searchResult = await play.search(trackTitle, { limit: 1 });
-          if (!searchResult.length) {
-            return await interaction.editReply({ content: 'Could not find a playable stream for this Spotify track.' });
-          }
-          streamUrl = searchResult[0].url;
-        } else {
-          return await interaction.editReply({ content: 'Playlists and albums are not supported yet, please provide a direct track link.' });
+        if (output) {
+          streamUrl = output.url || audioUrl;
+          trackTitle = output.title || "YouTube Track";
         }
-      } else {
-        const videoInfo = await play.video_basic_info(inputUrl);
-        trackTitle = videoInfo.video_details.title || "YouTube Track";
-        streamUrl = inputUrl;
       }
 
-      // Fetch or create the server queue
+      // Fetch or create the server queue track list tracker
       let serverQueue = musicQueues.get(interaction.guild.id);
 
       const song = {
         title: trackTitle,
         url: streamUrl,
-        originalUrl: inputUrl
+        originalUrl: audioUrl
       };
 
       if (!serverQueue) {
@@ -795,7 +780,10 @@ client.on('interactionCreate', async interaction => {
             channelId: voiceChannel.id,
             guildId: interaction.guild.id,
             adapterCreator: interaction.guild.voiceAdapterCreator,
+            selfDeaf: false,
           });
+
+          await entersState(connection, VoiceConnectionStatus.Ready, 15000);
 
           const player = createAudioPlayer();
           serverQueue.connection = connection;
@@ -804,13 +792,16 @@ client.on('interactionCreate', async interaction => {
 
           const playSong = async (activeSong) => {
             if (!activeSong) {
-              serverQueue.connection.destroy();
+              if (serverQueue.connection.state.status !== VoiceConnectionStatus.Destroyed) {
+                serverQueue.connection.destroy();
+              }
               musicQueues.delete(interaction.guild.id);
               return;
             }
 
-            const stream = await play.stream(activeSong.url, { quality: 0 });
-            const resource = createAudioResource(stream.stream, { inputType: stream.type });
+            const resource = createAudioResource(activeSong.url, {
+              inputType: StreamType.Arbitrary
+            });
             
             serverQueue.player.play(resource);
 
@@ -829,15 +820,17 @@ client.on('interactionCreate', async interaction => {
           });
 
           player.on('error', error => {
-            console.error(`Audio Player Error: ${error.message}`);
+            console.error(`Stream Error: ${error.message}`);
             serverQueue.songs.shift();
             playSong(serverQueue.songs[0]);
           });
 
+          await interaction.editReply({ content: `Connected to **${voiceChannel.name}**!` });
+
         } catch (err) {
           console.error(err);
           musicQueues.delete(interaction.guild.id);
-          return await interaction.editReply({ content: 'Could not join the voice channel.' });
+          return await interaction.editReply({ content: 'I COULD NOT JOIN THE VOICE CHANNEL' });
         }
       } else {
         serverQueue.songs.push(song);
@@ -847,38 +840,27 @@ client.on('interactionCreate', async interaction => {
         return await interaction.editReply({ embeds: [queueEmbed] });
       }
 
-      await interaction.editReply({ content: 'Connecting and loading audio stream...' });
-
     } catch (error) {
-      console.error(error);
-      return await interaction.editReply({ content: `Error: ${error.message}\n\`\`\`${error.stack.split('\n').slice(0, 3).join('\n')}\`\`\`` });
+      console.error("Playback Exception:", error);
+      await interaction.editReply({ content: 'I CANT READ THIS LINK OR EXTRACT STREAM' });
     }
   }
-    
+
   // ----------------------------------------
   // --- [MUSIC]: COMMAND: STOP ---
   // ----------------------------------------
   if (commandName === 'stop') {
     const { getVoiceConnection } = require('@discordjs/voice');
-    const voiceChannel = interaction.member.voice.channel;
-
-    if (!voiceChannel) {
-      return await interaction.reply({ content: 'You must be in a voice channel to stop the music.', ephemeral: true });
-    }
-
     const connection = getVoiceConnection(interaction.guild.id);
+
     if (!connection) {
-      return await interaction.reply({ content: 'The bot is not currently connected to any voice channels.', ephemeral: true });
+      return await interaction.reply({ content: 'IM NOT PLAYING ANY MUSIC', ephemeral: true });
     }
 
     musicQueues.delete(interaction.guild.id);
     connection.destroy();
-
-    const stopEmbed = new EmbedBuilder()
-      .setDescription('**Playback stopped.** Left the voice channel.')
-      .setColor('#ff4757');
-
-    return await interaction.reply({ embeds: [stopEmbed] });
+    
+    await interaction.reply({ content: 'I STOPPED THE MUSIC AND LEFT THE CHANNEL' });
   }
 
   // ----------------------------------------
@@ -912,8 +894,6 @@ client.on('interactionCreate', async interaction => {
       .setFooter({ text: `${serverQueue.songs.length} track(s) total` });
 
     return await interaction.reply({ embeds: [queueEmbed] });
-  }
-
   // ----------------------------------------
   // --- [STATS]: COMMAND: LEVEL ---
   // ----------------------------------------
