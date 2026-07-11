@@ -166,7 +166,7 @@ const commands = [
     description: 'Make Aidan Bot say something',
     options: [{ name: 'message', type: ApplicationCommandOptionType.String, description: 'The text you want Aidan Bot to repeat', required: true }]
   },
-  { name: 'leaderboard', description: 'Display the Aidansville Level or Dap Leaderboard' },
+  { name: 'leaderboard', description: 'Display the Aidansville level leaderboard' },
   {
     name: 'level',
     description: 'Check your current level and progress',
@@ -711,7 +711,6 @@ client.on('interactionCreate', async interaction => {
 
     const lvlEmbed = new EmbedBuilder()
       .setAuthor({ name: targetUser.username, iconURL: targetUser.displayAvatarURL() })
-      .setTitle('Progress Card')
       .addFields(
         { name: 'Rank', value: `#${rank}`, inline: true },
         { name: 'Level', value: `${userData.level}`, inline: true },
@@ -741,11 +740,6 @@ client.on('interactionCreate', async interaction => {
       .setDescription(description || 'No one has earned XP yet!')
       .setColor('#2b2d31')
       .setThumbnail(interaction.guild.iconURL());
-
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('lb_levels').setLabel('Level Leaderboard').setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId('lb_daps').setLabel('Dap Leaderboard').setStyle(ButtonStyle.Success)
-    );
 
     return await interaction.reply({ embeds: [lbEmbed], components: [row] });
   }
