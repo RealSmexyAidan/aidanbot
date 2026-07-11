@@ -754,8 +754,9 @@ client.on('interactionCreate', async interaction => {
         } else {
           return await interaction.editReply({ content: 'Playlists and albums are not supported yet, please provide a direct track link.' });
         }
-      } else {
-        const videoInfo = await play.video_basic_info(inputUrl);
+    } else {
+        // Adding { htc: true } tells play-dl to mimic a phone client to bypass bot checks!
+        const videoInfo = await play.video_basic_info(inputUrl, { htc: true });
         trackTitle = videoInfo.video_details.title || "YouTube Track";
         streamUrl = inputUrl;
       }
