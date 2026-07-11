@@ -237,6 +237,8 @@ client.once('ready', async () => {
       client.user.setPresence({ activities: [{ name: statuses[statusIndex], type: ActivityType.Custom }], status: 'online' });
   }, 15000); 
 
+  
+
   // Server Stats Counter Tracker
   const STATS_CHANNEL_ID = '1444216285964800093'; 
   const updateStats = async () => {
@@ -321,6 +323,42 @@ client.on('messageCreate', async message => {
   await pool.query('UPDATE users SET xp = $1, level = $2 WHERE user_id = $3', [newXp, newLevel, userId]);
   xpCooldowns.add(userId);
   setTimeout(() => xpCooldowns.delete(userId), 5000);
+});
+
+// ----------------------------------------
+// --- [MUSIC]: AUTO-LEAVE EMPTY VC ---
+// ----------------------------------------
+client.on('voiceStateUpdate', (oldState, newState) => {
+  // Check if the bot was connected to a channel in this server
+  const serverQueue = musicQueues.get(oldState.guild.id);
+  if (!serverQueue || !serverQueue.connection) return;
+
+  const botVoiceChannel = serverQueue.voiceChannel;
+
+  // Count how many non-bot users are left in that specific voice channel
+  // (Filter out bots so it doesn't count itself)
+  const humanMembers = botVoiceChannel.members.filter(member => !member.user.bot);
+
+  // If there are 0 real users left in the channel, pack up and leave
+  if (humanMembers.size === 0) {
+    try {
+      // Clean up server queue data memory
+      musicQueues.delete(oldState.guild.id);
+      
+      // Send a message letting the channel know it left due to inactivity
+      serverQueue.textChannel.send({
+        embeds: [{
+          description: '**Left the voice channel** because everyone left.',
+          color: 0x2b2d31
+        }]
+      }).catch(console.error);
+
+      // Safely disconnect
+      serverQueue.connection.destroy();
+    } catch (error) {
+      console.error('Error handling auto-leave:', error);
+    }
+  }
 });
 
 
@@ -672,8 +710,200 @@ client.on('interactionCreate', async interaction => {
       return await interaction.editReply({ files: [attachment] });
     } catch (error) {
       console.error(error);
-      return await interaction.editReply({ content: 'Could not find that message. Make sure the ID is correct and from this channel' });
+      return await interaction.editReply({ content: 'Could not find that message. Make sure the ID is correct and from this channel.' });
     }
+  }
+  // ----------------------------------------
+  // --- [MUSIC]: COMMAND: PLAY ---
+  // ----------------------------------------
+  if (commandName === 'play') {
+    const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
+    const play = require('play-dl');
+
+    const inputUrl = interaction.options.getString('link');
+    const voiceChannel = interaction.member.voice.channel;
+
+    if (!voiceChannel) {
+      return await interaction.reply({ content: 'You must be in a voice channel to use this command.', ephemeral: true });
+    }
+
+    await interaction.deferReply();
+
+    try {
+      let trackTitle = "Unknown Track";
+      let streamUrl = "";
+
+      // Validate platform and extract data
+      const urlType = play.yt_validate(inputUrl);
+      const isSpotify = inputUrl.includes('spotify.com/');
+
+      if (!urlType && !isSpotify) {
+        return await interaction.editReply({ content: 'Please provide a valid YouTube or Spotify link.' });
+      }
+
+      if (isSpotify) {
+        if (play.is_timed_out()) await play.user_data();
+        const spotifyData = await play.spotify(inputUrl);
+        
+        if (spotifyData.type === 'track') {
+          trackTitle = `${spotifyData.name} - ${spotifyData.artists.map(a => a.name).join(', ')}`;
+          const searchResult = await play.search(trackTitle, { limit: 1 });
+          if (!searchResult.length) {
+            return await interaction.editReply({ content: 'Could not find a playable stream for this Spotify track.' });
+          }
+          streamUrl = searchResult[0].url;
+        } else {
+          return await interaction.editReply({ content: 'Playlists and albums are not supported yet, please provide a direct track link.' });
+        }
+      } else {
+        const videoInfo = await play.video_basic_info(inputUrl);
+        trackTitle = videoInfo.video_details.title || "YouTube Track";
+        streamUrl = inputUrl;
+      }
+
+      // Fetch or create the server queue
+      let serverQueue = musicQueues.get(interaction.guild.id);
+
+      const song = {
+        title: trackTitle,
+        url: streamUrl,
+        originalUrl: inputUrl
+      };
+
+      if (!serverQueue) {
+        serverQueue = {
+          textChannel: interaction.channel,
+          voiceChannel: voiceChannel,
+          connection: null,
+          player: null,
+          songs: []
+        };
+
+        musicQueues.set(interaction.guild.id, serverQueue);
+        serverQueue.songs.push(song);
+
+        try {
+          const connection = joinVoiceChannel({
+            channelId: voiceChannel.id,
+            guildId: interaction.guild.id,
+            adapterCreator: interaction.guild.voiceAdapterCreator,
+          });
+
+          const player = createAudioPlayer();
+          serverQueue.connection = connection;
+          serverQueue.player = player;
+          connection.subscribe(player);
+
+          const playSong = async (activeSong) => {
+            if (!activeSong) {
+              serverQueue.connection.destroy();
+              musicQueues.delete(interaction.guild.id);
+              return;
+            }
+
+            const stream = await play.stream(activeSong.url, { quality: 0 });
+            const resource = createAudioResource(stream.stream, { inputType: stream.type });
+            
+            serverQueue.player.play(resource);
+
+            const playEmbed = new EmbedBuilder()
+              .setDescription(`Now playing: **[${activeSong.title}](${activeSong.originalUrl})**`)
+              .setColor('#2b2d31');
+            
+            serverQueue.textChannel.send({ embeds: [playEmbed] });
+          };
+
+          await playSong(serverQueue.songs[0]);
+
+          player.on(AudioPlayerStatus.Idle, () => {
+            serverQueue.songs.shift();
+            playSong(serverQueue.songs[0]);
+          });
+
+          player.on('error', error => {
+            console.error(`Audio Player Error: ${error.message}`);
+            serverQueue.songs.shift();
+            playSong(serverQueue.songs[0]);
+          });
+
+        } catch (err) {
+          console.error(err);
+          musicQueues.delete(interaction.guild.id);
+          return await interaction.editReply({ content: 'Could not join the voice channel.' });
+        }
+      } else {
+        serverQueue.songs.push(song);
+        const queueEmbed = new EmbedBuilder()
+          .setDescription(`Added to queue: **[${song.title}](${song.originalUrl})**`)
+          .setColor('#2b2d31');
+        return await interaction.editReply({ embeds: [queueEmbed] });
+      }
+
+      await interaction.editReply({ content: 'Connecting and loading audio stream...' });
+
+    } catch (error) {
+      console.error(error);
+      return await interaction.editReply({ content: 'There was an error trying to process that track.' });
+    }
+  }
+
+  // ----------------------------------------
+  // --- [MUSIC]: COMMAND: STOP ---
+  // ----------------------------------------
+  if (commandName === 'stop') {
+    const { getVoiceConnection } = require('@discordjs/voice');
+    const voiceChannel = interaction.member.voice.channel;
+
+    if (!voiceChannel) {
+      return await interaction.reply({ content: 'You must be in a voice channel to stop the music.', ephemeral: true });
+    }
+
+    const connection = getVoiceConnection(interaction.guild.id);
+    if (!connection) {
+      return await interaction.reply({ content: 'The bot is not currently connected to any voice channels.', ephemeral: true });
+    }
+
+    musicQueues.delete(interaction.guild.id);
+    connection.destroy();
+
+    const stopEmbed = new EmbedBuilder()
+      .setDescription('**Playback stopped.** Left the voice channel.')
+      .setColor('#ff4757');
+
+    return await interaction.reply({ embeds: [stopEmbed] });
+  }
+
+  // ----------------------------------------
+  // --- [MUSIC]: COMMAND: QUEUE ---
+  // ----------------------------------------
+  if (commandName === 'queue') {
+    const serverQueue = musicQueues.get(interaction.guild.id);
+
+    if (!serverQueue || !serverQueue.songs.length) {
+      return await interaction.reply({ content: 'There is nothing currently playing or queued.', ephemeral: true });
+    }
+
+    const currentTrack = serverQueue.songs[0];
+    
+    let queueList = "";
+    if (serverQueue.songs.length > 1) {
+      queueList = serverQueue.songs.slice(1, 11).map((song, index) => {
+        return `**${index + 1}.** [${song.title}](${song.originalUrl})`;
+      }).join('\n');
+    } else {
+      queueList = "_No upcoming tracks in line._";
+    }
+
+    const queueEmbed = new EmbedBuilder()
+      .setTitle(`🎵 Server Music Queue`)
+      .addFields(
+        { name: 'Now Playing', value: `[${currentTrack.title}](${currentTrack.originalUrl})` },
+        { name: 'Next Up', value: queueList }
+      )
+      .setColor('#2b2d31')
+      .setFooter({ text: `${serverQueue.songs.length} track(s) total` });
+
+    return await interaction.reply({ embeds: [queueEmbed] });
   }
 
   // ----------------------------------------
