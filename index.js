@@ -842,12 +842,12 @@ client.on('interactionCreate', async interaction => {
 
       await interaction.editReply({ content: 'Connecting and loading audio stream...' });
 
-    } catch (error) {
+} catch (error) {
       console.error(error);
-      return await interaction.editReply({ content: 'There was an error trying to process that track.' });
+      // This will print the exact internal error directly into your Discord chat!
+      return await interaction.editReply({ content: `Error: ${error.message}\n\`\`\`${error.stack.split('\n').slice(0, 3).join('\n')}\`\`\`` });
     }
-  }
-
+    
   // ----------------------------------------
   // --- [MUSIC]: COMMAND: STOP ---
   // ----------------------------------------
