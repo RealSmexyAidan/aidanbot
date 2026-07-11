@@ -740,6 +740,12 @@ client.on('interactionCreate', async interaction => {
         return await interaction.editReply({ content: 'Please provide a valid YouTube or Spotify link.' });
       }
 
+      // Configure authentication options using your exported file
+      const playDlOptions = { 
+        cookie: path.join(__dirname, 'cookies.txt'),
+        htc: true 
+      };
+
       if (isSpotify) {
         if (play.is_timed_out()) await play.user_data();
         const spotifyData = await play.spotify(inputUrl);
@@ -754,9 +760,9 @@ client.on('interactionCreate', async interaction => {
         } else {
           return await interaction.editReply({ content: 'Playlists and albums are not supported yet, please provide a direct track link.' });
         }
-    } else {
-        // Adding { htc: true } tells play-dl to mimic a phone client to bypass bot checks!
-        const videoInfo = await play.video_basic_info(inputUrl, { htc: true });
+      } else {
+        // Pass our authentication options into video basic info
+        const videoInfo = await play.video_basic_info(inputUrl, playDlOptions);
         trackTitle = videoInfo.video_details.title || "YouTube Track";
         streamUrl = inputUrl;
       }
@@ -801,9 +807,14 @@ client.on('interactionCreate', async interaction => {
               return;
             }
 
-            const stream = await play.stream(activeSong.url, { quality: 0 });
-            const resource = createAudioResource(stream.stream, { inputType: stream.type });
+            // Pass authentication configuration into the stream itself to prevent bot detection crashes
+            const stream = await play.stream(activeSong.url, { 
+              quality: 0,
+              cookie: path.join(__dirname, 'cookies.txt'),
+              htc: true
+            });
             
+            const resource = createAudioResource(stream.stream, { inputType: stream.type });
             serverQueue.player.play(resource);
 
             const playEmbed = new EmbedBuilder()
@@ -841,9 +852,8 @@ client.on('interactionCreate', async interaction => {
 
       await interaction.editReply({ content: 'Connecting and loading audio stream...' });
 
-} catch (error) {
+    } catch (error) {
       console.error(error);
-      // This will print the exact internal error directly into your Discord chat!
       return await interaction.editReply({ content: `Error: ${error.message}\n\`\`\`${error.stack.split('\n').slice(0, 3).join('\n')}\`\`\`` });
     }
   }
