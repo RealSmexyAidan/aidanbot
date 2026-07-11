@@ -70,6 +70,16 @@ if (!TOKEN || !CLIENT_ID || !DATABASE_URL) {
   }
 }
 
+// Auto-generate cookies.txt on Railway if the environment variable exists
+const fs = require('fs');
+if (process.env.YOUTUBE_COOKIES) {
+  try {
+    fs.writeFileSync(path.join(__dirname, 'cookies.txt'), process.env.YOUTUBE_COOKIES);
+    console.log("Successfully generated cookies.txt from environment variables.");
+  } catch (err) {
+    console.error("Failed to write cookies.txt:", err);
+  }
+}
 
 // ==========================================
 // === 2. DATABASE UTILITIES ===
