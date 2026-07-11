@@ -1,2 +1,2 @@
-[providers.node]
+[phases.setup]
 pkgs = ["nodejs", "python3"]
