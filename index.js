@@ -44,6 +44,7 @@ const express = require('express');
 const { Pool } = require('pg');
 const path = require('path');
 const musicQueues = new Map();
+const youtubedl = require('youtube-dl-exec');
 
 // Register the exact font filename
 GlobalFonts.registerFromPath(path.join(__dirname, 'ARIAL.TTF'), 'CustomArial');
@@ -713,22 +714,21 @@ client.on('interactionCreate', async interaction => {
     }
   }
   
-  // ----------------------------------------
+// ----------------------------------------
   // --- [MUSIC]: COMMAND: PLAY ---
   // ----------------------------------------
   if (commandName === 'play') {
-    const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, entersState, StreamType } = require('@discordjs/voice');
-    const youtubedl = require('youtube-dl-exec');
+    // 1. Instantly tell Discord to wait so it never times out
+    await interaction.deferReply();
 
+    const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, entersState, StreamType } = require('@discordjs/voice');
     const voiceChannel = interaction.member.voice.channel;
 
     if (!voiceChannel) {
-      return await interaction.reply({ content: 'YOU NEED TO BE IN A VC FIRST ', ephemeral: true });
+      return await interaction.editReply({ content: 'YOU NEED TO BE IN A VC FIRST' });
     }
 
-    await interaction.deferReply();
     let audioUrl = interaction.options.getString('link');
-
     if (!audioUrl) {
       return await interaction.editReply({ content: 'GIVE ME A LINK' });
     }
@@ -739,7 +739,7 @@ client.on('interactionCreate', async interaction => {
       let trackTitle = "Unknown YouTube Track";
       let streamUrl = audioUrl;
 
-      // Extract details if it's a YouTube link
+      // 2. Safely grab the video stream using the top-level youtubedl dependency
       if (audioUrl.includes('youtube.com') || audioUrl.includes('youtu.be')) {
         const output = await youtubedl(audioUrl, {
           dumpSingleJson: true,
@@ -754,14 +754,9 @@ client.on('interactionCreate', async interaction => {
         }
       }
 
-      // Fetch or create the server queue track list tracker
+      // 3. This utilizes the 'musicQueues' Map from the top of your file!
       let serverQueue = musicQueues.get(interaction.guild.id);
-
-      const song = {
-        title: trackTitle,
-        url: streamUrl,
-        originalUrl: audioUrl
-      };
+      const song = { title: trackTitle, url: streamUrl, originalUrl: audioUrl };
 
       if (!serverQueue) {
         serverQueue = {
@@ -799,10 +794,7 @@ client.on('interactionCreate', async interaction => {
               return;
             }
 
-            const resource = createAudioResource(activeSong.url, {
-              inputType: StreamType.Arbitrary
-            });
-            
+            const resource = createAudioResource(activeSong.url, { inputType: StreamType.Arbitrary });
             serverQueue.player.play(resource);
 
             const playEmbed = new EmbedBuilder()
@@ -820,12 +812,12 @@ client.on('interactionCreate', async interaction => {
           });
 
           player.on('error', error => {
-            console.error(`Stream Error: ${error.message}`);
+            console.error(`🔴 Stream Error: ${error.message}`);
             serverQueue.songs.shift();
             playSong(serverQueue.songs[0]);
           });
 
-          await interaction.editReply({ content: `Connected to **${voiceChannel.name}**!` });
+          await interaction.editReply({ content: `Connected to **${voiceChannel.name}** and loading track!` });
 
         } catch (err) {
           console.error(err);
@@ -894,6 +886,8 @@ client.on('interactionCreate', async interaction => {
       .setFooter({ text: `${serverQueue.songs.length} track(s) total` });
 
     return await interaction.reply({ embeds: [queueEmbed] });
+  }
+  
   // ----------------------------------------
   // --- [STATS]: COMMAND: LEVEL ---
   // ----------------------------------------
