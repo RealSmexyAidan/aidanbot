@@ -594,7 +594,7 @@ client.on('interactionCreate', async interaction => {
     await interaction.deferReply({ ephemeral: true });
     try {
       const targetMessage = await interaction.channel.messages.fetch(messageId);
-      if (!targetMessage.content) return await interaction.editReply({ content: 'That message does not contain any text to quote' });
+      if (!targetMessage.content) return await interaction.editReply({ content: 'That message does not contain any text to quote.' });
 
       // 1. Setup Canvas Layout (800x400 landscape)
       const canvas = createCanvas(800, 400);
@@ -895,7 +895,7 @@ client.on('interactionCreate', async interaction => {
     }
 
     const queueEmbed = new EmbedBuilder()
-      .setTitle(`🎵 Server Music Queue`)
+      .setTitle(`Server Music Queue`)
       .addFields(
         { name: 'Now Playing', value: `[${currentTrack.title}](${currentTrack.originalUrl})` },
         { name: 'Next Up', value: queueList }
