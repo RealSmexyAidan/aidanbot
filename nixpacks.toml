@@ -1,0 +1,2 @@
+[providers.node]
+pkgs = ["nodejs", "python3"]
