@@ -44,7 +44,7 @@ const express = require('express');
 const { Pool } = require('pg');
 const path = require('path');
 const musicQueues = new Map();
-const ytdl = require('@distube/ytdl-core');
+const play = require('play-dl');
 
 // Register the exact font filename
 GlobalFonts.registerFromPath(path.join(__dirname, 'ARIAL.TTF'), 'CustomArial');
@@ -727,24 +727,31 @@ client.on('interactionCreate', async interaction => {
       return await interaction.editReply({ content: 'You need to be in a voice channel to play music.' });
     }
 
-    let audioUrl = interaction.options.getString('link');
-    if (!audioUrl) {
-      return await interaction.editReply({ content: 'Please provide a link.' });
+    let inputQuery = interaction.options.getString('link');
+    if (!inputQuery) {
+      return await interaction.editReply({ content: 'Please provide a search query or a link.' });
     }
 
-    audioUrl = audioUrl.trim();
+    inputQuery = inputQuery.trim();
 
     try {
-      let trackTitle = "Unknown YouTube Track";
+      let trackTitle = "Unknown Track";
+      let streamUrl = "";
+      let originalUrl = "";
+
+      // Bypass YouTube completely by redirecting all searches & links into SoundCloud's free API
+      // This means zero 403 Forbidden errors or robot verification checks!
+      let searchResult = await play.search(inputQuery, { source: { soundcloud: 'tracks' }, limit: 1 });
       
-      if (audioUrl.includes('youtube.com') || audioUrl.includes('youtu.be')) {
-        // Fetch track information dynamically using the updated @distube/ytdl-core fork
-        const info = await ytdl.getBasicInfo(audioUrl);
-        trackTitle = info.videoDetails.title || "YouTube Track";
+      if (!searchResult || searchResult.length === 0) {
+        return await interaction.editReply({ content: 'Could not find that track on the cloud network.' });
       }
 
+      trackTitle = searchResult[0].name || "Cloud Track";
+      originalUrl = searchResult[0].url;
+
       let serverQueue = musicQueues.get(interaction.guild.id);
-      const song = { title: trackTitle, originalUrl: audioUrl };
+      const song = { title: trackTitle, originalUrl: originalUrl, rawData: searchResult[0] };
 
       if (!serverQueue) {
         serverQueue = {
@@ -766,7 +773,6 @@ client.on('interactionCreate', async interaction => {
             selfDeaf: false,
           });
 
-          // 30-second timeout to handle hosting platform lag safely
           await entersState(connection, VoiceConnectionStatus.Ready, 30000);
 
           const player = createAudioPlayer();
@@ -783,16 +789,10 @@ client.on('interactionCreate', async interaction => {
               return;
             }
 
-            // Using the TV client bypass options to dodge YouTube's cloud firewalls
-            const stream = ytdl(activeSong.originalUrl, { 
-              filter: 'audioonly', 
-              highWaterMark: 1 << 25,
-              quality: 'highestaudio',
-              liveBuffer: 40000,
-              playerClients: ['TV']
-            });
+            // Stream from SoundCloud directly inside Node.js (No python, no captcha checks)
+            const stream = await play.stream(activeSong.originalUrl);
 
-            const resource = createAudioResource(stream, { inputType: StreamType.Arbitrary });
+            const resource = createAudioResource(stream.stream, { inputType: stream.type });
             serverQueue.player.play(resource);
 
             const playEmbed = new EmbedBuilder()
@@ -819,12 +819,11 @@ client.on('interactionCreate', async interaction => {
 
         } catch (err) {
           console.error("Voice Connection Failed:", err);
-          // Clean up connection immediately so it doesn't get stuck in VC on error
           if (serverQueue && serverQueue.connection) {
             serverQueue.connection.destroy();
           }
           musicQueues.delete(interaction.guild.id);
-          return await interaction.editReply({ content: 'Could not establish a stable connection to the voice channel in time.' });
+          return await interaction.editReply({ content: 'Could not establish a stable connection to the voice channel.' });
         }
       } else {
         serverQueue.songs.push(song);
@@ -836,7 +835,7 @@ client.on('interactionCreate', async interaction => {
 
     } catch (error) {
       console.error("Playback Exception:", error);
-      await interaction.editReply({ content: 'I cannot read the link or extract stream.' });
+      await interaction.editReply({ content: 'An unexpected stream issue occurred while parsing the track.' });
     }
   }
   
