@@ -758,7 +758,7 @@ client.on('interactionCreate', async interaction => {
     return await interaction.reply({ embeds: [lbEmbed], components: [row] });
   }
   
- // ----------------------------------------
+  // ----------------------------------------
   // --- [ECONOMY]: COMMAND: DAILY ---
   // ----------------------------------------
   if (commandName === 'daily') {
@@ -792,7 +792,7 @@ client.on('interactionCreate', async interaction => {
     return await interaction.editReply({ embeds: [dailySuccessEmbed] });
   }
 
-// ----------------------------------------
+  // ----------------------------------------
   // --- [ECONOMY]: COMMAND: BALANCE ---
   // ----------------------------------------
   if (commandName === 'balance') {
@@ -808,7 +808,7 @@ client.on('interactionCreate', async interaction => {
     return await interaction.reply({ embeds: [balEmbed] });
   }
 
-// ----------------------------------------
+  // ----------------------------------------
   // --- [ECONOMY]: COMMAND: STEAL ---
   // ----------------------------------------
   if (commandName === 'steal') {
