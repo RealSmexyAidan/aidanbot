@@ -14,8 +14,8 @@
     "@napi-rs/canvas": "^0.1.5",
     "pg": "^8.11.5",
     "@discordjs/voice": "^0.18.0",
-    "@distube/ytdl-core": "^4.15.9",
+    "play-dl": "^1.9.7",
     "libsodium-wrappers": "^0.7.15",
     "ffmpeg-static": "^5.2.0"
   }
-}
+  
