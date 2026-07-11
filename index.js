@@ -719,7 +719,7 @@ client.on('interactionCreate', async interaction => {
   // ----------------------------------------
   if (commandName === 'play') {
     // 1. Instantly defer so Discord knows the bot is working and gives us 15 minutes
-    await interaction.deferReply();
+    await interaction.deferReply({ ephemeral: true });
 
     const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, entersState, StreamType } = require('@discordjs/voice');
     const voiceChannel = interaction.member.voice.channel;
