@@ -845,6 +845,7 @@ client.on('interactionCreate', async interaction => {
       // This will print the exact internal error directly into your Discord chat!
       return await interaction.editReply({ content: `Error: ${error.message}\n\`\`\`${error.stack.split('\n').slice(0, 3).join('\n')}\`\`\`` });
     }
+  }
     
   // ----------------------------------------
   // --- [MUSIC]: COMMAND: STOP ---
