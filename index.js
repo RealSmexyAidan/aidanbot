@@ -44,7 +44,7 @@ const express = require('express');
 const { Pool } = require('pg');
 const path = require('path');
 const musicQueues = new Map();
-const youtubedl = require('youtube-dl-exec');
+const ytdl = require('@distube/ytdl-core');
 
 // Register the exact font filename
 GlobalFonts.registerFromPath(path.join(__dirname, 'ARIAL.TTF'), 'CustomArial');
