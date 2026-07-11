@@ -718,19 +718,19 @@ client.on('interactionCreate', async interaction => {
   // --- [MUSIC]: COMMAND: PLAY ---
   // ----------------------------------------
   if (commandName === 'play') {
-    // 1. Instantly tell Discord to wait so it never times out
+    // 1. Instantly defer so Discord knows the bot is working and gives us 15 minutes
     await interaction.deferReply();
 
     const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, entersState, StreamType } = require('@discordjs/voice');
     const voiceChannel = interaction.member.voice.channel;
 
     if (!voiceChannel) {
-      return await interaction.editReply({ content: 'YOU NEED TO BE IN A VC FIRST' });
+      return await interaction.editReply({ content: 'You must be in a voice channel to play music.' });
     }
 
     let audioUrl = interaction.options.getString('link');
     if (!audioUrl) {
-      return await interaction.editReply({ content: 'GIVE ME A LINK' });
+      return await interaction.editReply({ content: 'I need a link in order to play music.' });
     }
 
     audioUrl = audioUrl.trim();
@@ -754,7 +754,7 @@ client.on('interactionCreate', async interaction => {
         }
       }
 
-      // 3. This utilizes the 'musicQueues' Map from the top of your file!
+      // 3. Utilizing the global 'musicQueues' Map
       let serverQueue = musicQueues.get(interaction.guild.id);
       const song = { title: trackTitle, url: streamUrl, originalUrl: audioUrl };
 
@@ -785,6 +785,7 @@ client.on('interactionCreate', async interaction => {
           serverQueue.player = player;
           connection.subscribe(player);
 
+          // Stream player engine
           const playSong = async (activeSong) => {
             if (!activeSong) {
               if (serverQueue.connection.state.status !== VoiceConnectionStatus.Destroyed) {
@@ -804,27 +805,30 @@ client.on('interactionCreate', async interaction => {
             serverQueue.textChannel.send({ embeds: [playEmbed] });
           };
 
+          // Start first track
           await playSong(serverQueue.songs[0]);
 
+          // Event Listeners for queue progression
           player.on(AudioPlayerStatus.Idle, () => {
             serverQueue.songs.shift();
             playSong(serverQueue.songs[0]);
           });
 
           player.on('error', error => {
-            console.error(`🔴 Stream Error: ${error.message}`);
+            console.error(`Stream Error: ${error.message}`);
             serverQueue.songs.shift();
             playSong(serverQueue.songs[0]);
           });
 
-          await interaction.editReply({ content: `Connected to **${voiceChannel.name}** and loading track!` });
+          await interaction.editReply({ content: `Connected to **${voiceChannel.name}** and loading track.` });
 
         } catch (err) {
           console.error(err);
           musicQueues.delete(interaction.guild.id);
-          return await interaction.editReply({ content: 'I COULD NOT JOIN THE VOICE CHANNEL' });
+          return await interaction.editReply({ content: 'Could not join the voice channel.' });
         }
       } else {
+        // If queue already exists, just push the track into the array
         serverQueue.songs.push(song);
         const queueEmbed = new EmbedBuilder()
           .setDescription(`Added to queue: **[${song.title}](${song.originalUrl})**`)
@@ -834,7 +838,7 @@ client.on('interactionCreate', async interaction => {
 
     } catch (error) {
       console.error("Playback Exception:", error);
-      await interaction.editReply({ content: 'I CANT READ THIS LINK OR EXTRACT STREAM' });
+      await interaction.editReply({ content: 'I cannot read the link or extract stream.' });
     }
   }
 
@@ -846,13 +850,13 @@ client.on('interactionCreate', async interaction => {
     const connection = getVoiceConnection(interaction.guild.id);
 
     if (!connection) {
-      return await interaction.reply({ content: 'IM NOT PLAYING ANY MUSIC', ephemeral: true });
+      return await interaction.reply({ content: 'Not currently playing any music.', ephemeral: true });
     }
 
     musicQueues.delete(interaction.guild.id);
     connection.destroy();
     
-    await interaction.reply({ content: 'I STOPPED THE MUSIC AND LEFT THE CHANNEL' });
+    await interaction.reply({ content: 'Stopped the music and left the channel.' });
   }
 
   // ----------------------------------------
@@ -887,6 +891,7 @@ client.on('interactionCreate', async interaction => {
 
     return await interaction.reply({ embeds: [queueEmbed] });
   }
+
   
   // ----------------------------------------
   // --- [STATS]: COMMAND: LEVEL ---
