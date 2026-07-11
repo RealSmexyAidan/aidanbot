@@ -44,23 +44,6 @@ const express = require('express');
 const { Pool } = require('pg');
 const path = require('path');
 
-// === DATABASE CONNECTION ===
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
-});
-
-// === AUTO-CREATE ECONOMY TABLE FOR AIDAN BUCKS ===
-pool.query(`
-  CREATE TABLE IF NOT EXISTS economy (
-      user_id VARCHAR(255) PRIMARY KEY,
-      guild_id VARCHAR(255) NOT NULL,
-      balance BIGINT DEFAULT 0,
-      last_daily TIMESTAMP WITH TIME ZONE DEFAULT NULL
-  );
-`)
-.then(() => console.log("Economy table is officially ready!"))
-.catch(err => console.error("Database failed to create table:", err));
 // Register the exact font filename
 GlobalFonts.registerFromPath(path.join(__dirname, 'ARIAL.TTF'), 'CustomArial');
 
