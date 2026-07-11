@@ -718,45 +718,33 @@ client.on('interactionCreate', async interaction => {
   // --- [MUSIC]: COMMAND: PLAY ---
   // ----------------------------------------
   if (commandName === 'play') {
-    // 1. Instantly defer so Discord knows the bot is working and gives us 15 minutes
     await interaction.deferReply({ ephemeral: true });
 
     const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, entersState, StreamType } = require('@discordjs/voice');
     const voiceChannel = interaction.member.voice.channel;
 
     if (!voiceChannel) {
-      return await interaction.editReply({ content: 'You must be in a voice channel to play music.' });
+      return await interaction.editReply({ content: 'You need to be in a voice channel to play music.' });
     }
 
     let audioUrl = interaction.options.getString('link');
     if (!audioUrl) {
-      return await interaction.editReply({ content: 'I need a link in order to play music.' });
+      return await interaction.editReply({ content: 'Please provide a link.' });
     }
 
     audioUrl = audioUrl.trim();
 
     try {
       let trackTitle = "Unknown YouTube Track";
-      let streamUrl = audioUrl;
-
-      // 2. Safely grab the video stream using the top-level youtubedl dependency
+      
       if (audioUrl.includes('youtube.com') || audioUrl.includes('youtu.be')) {
-        const output = await youtubedl(audioUrl, {
-          dumpSingleJson: true,
-          noWarnings: true,
-          preferFreeFormats: true,
-          youtubeSkipDashManifest: true,
-        });
-        
-        if (output) {
-          streamUrl = output.url || audioUrl;
-          trackTitle = output.title || "YouTube Track";
-        }
+        // Fetch track information dynamically using the updated @distube/ytdl-core fork
+        const info = await ytdl.getBasicInfo(audioUrl);
+        trackTitle = info.videoDetails.title || "YouTube Track";
       }
 
-      // 3. Utilizing the global 'musicQueues' Map
       let serverQueue = musicQueues.get(interaction.guild.id);
-      const song = { title: trackTitle, url: streamUrl, originalUrl: audioUrl };
+      const song = { title: trackTitle, originalUrl: audioUrl };
 
       if (!serverQueue) {
         serverQueue = {
@@ -785,7 +773,6 @@ client.on('interactionCreate', async interaction => {
           serverQueue.player = player;
           connection.subscribe(player);
 
-          // Stream player engine
           const playSong = async (activeSong) => {
             if (!activeSong) {
               if (serverQueue.connection.state.status !== VoiceConnectionStatus.Destroyed) {
@@ -795,7 +782,15 @@ client.on('interactionCreate', async interaction => {
               return;
             }
 
-            const resource = createAudioResource(activeSong.url, { inputType: StreamType.Arbitrary });
+            // Stream audio only with optimized buffer options to avoid data-center lag
+            const stream = ytdl(activeSong.originalUrl, { 
+              filter: 'audioonly', 
+              highWaterMark: 1 << 25,
+              quality: 'highestaudio',
+              liveBuffer: 40000
+            });
+
+            const resource = createAudioResource(stream, { inputType: StreamType.Arbitrary });
             serverQueue.player.play(resource);
 
             const playEmbed = new EmbedBuilder()
@@ -805,10 +800,8 @@ client.on('interactionCreate', async interaction => {
             serverQueue.textChannel.send({ embeds: [playEmbed] });
           };
 
-          // Start first track
           await playSong(serverQueue.songs[0]);
 
-          // Event Listeners for queue progression
           player.on(AudioPlayerStatus.Idle, () => {
             serverQueue.songs.shift();
             playSong(serverQueue.songs[0]);
@@ -828,7 +821,6 @@ client.on('interactionCreate', async interaction => {
           return await interaction.editReply({ content: 'Could not join the voice channel.' });
         }
       } else {
-        // If queue already exists, just push the track into the array
         serverQueue.songs.push(song);
         const queueEmbed = new EmbedBuilder()
           .setDescription(`Added to queue: **[${song.title}](${song.originalUrl})**`)
