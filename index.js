@@ -43,6 +43,7 @@ const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ApplicationComman
 const express = require('express');
 const { Pool } = require('pg');
 const path = require('path');
+const musicQueues = new Map();
 
 // Register the exact font filename
 GlobalFonts.registerFromPath(path.join(__dirname, 'ARIAL.TTF'), 'CustomArial');
@@ -735,7 +736,7 @@ client.on('interactionCreate', async interaction => {
 
       // Validate platform and extract data
       const urlType = play.yt_validate(inputUrl);
-      const isSpotify = inputUrl.includes('spotify.com/');
+      const isSpotify = inputUrl.includes('spotify.com');
 
       if (!urlType && !isSpotify) {
         return await interaction.editReply({ content: 'Please provide a valid YouTube or Spotify link.' });
