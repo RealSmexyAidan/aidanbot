@@ -300,7 +300,7 @@ client.on('messageCreate', async message => {
       message.channel.send({ embeds: [lvlUpEmbed] });
     }
 
-    // Milestones Role Unlocks
+// Milestones Role Unlocks
     try {
       const member = await message.guild.members.fetch(userId);
       if (newLevel >= 50) {
@@ -324,7 +324,7 @@ client.on('messageCreate', async message => {
   await pool.query('UPDATE users SET xp = $1, level = $2 WHERE user_id = $3', [newXp, newLevel, userId]);
   xpCooldowns.add(userId);
   setTimeout(() => xpCooldowns.delete(userId), 5000);
-});
+}); 
 
 // ----------------------------------------
 // --- [MUSIC]: AUTO-LEAVE EMPTY VC ---
@@ -337,7 +337,6 @@ client.on('voiceStateUpdate', (oldState, newState) => {
   const botVoiceChannel = serverQueue.voiceChannel;
 
   // Count how many non-bot users are left in that specific voice channel
-  // (Filter out bots so it doesn't count itself)
   const humanMembers = botVoiceChannel.members.filter(member => !member.user.bot);
 
   // If there are 0 real users left in the channel, pack up and leave
@@ -349,7 +348,7 @@ client.on('voiceStateUpdate', (oldState, newState) => {
       // Send a message letting the channel know it left due to inactivity
       serverQueue.textChannel.send({
         embeds: [{
-          description: '**Left the voice channel** because everyone left.',
+          description: '👋 **Left the voice channel** because everyone left.',
           color: 0x2b2d31
         }]
       }).catch(console.error);
@@ -361,7 +360,6 @@ client.on('voiceStateUpdate', (oldState, newState) => {
     }
   }
 });
-
 
 // ==========================================
 // === 7. WELCOMER SYSTEM MODULE ===
