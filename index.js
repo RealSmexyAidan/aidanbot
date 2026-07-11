@@ -69,7 +69,6 @@ if (!TOKEN || !CLIENT_ID || !DATABASE_URL) {
   }
 }
 
-
 // ==========================================
 // === 2. DATABASE UTILITIES ===
 // ==========================================
@@ -79,6 +78,7 @@ const pool = new Pool({
 });
 
 async function initDb() {
+  // Verify/Create Users Table
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       user_id VARCHAR(20) PRIMARY KEY,
@@ -87,7 +87,25 @@ async function initDb() {
       daps INTEGER DEFAULT 0
     )
   `);
-  console.log('Database table verified and ready.');
+
+  // Verify/Create Economy Table with a composite key (user_id + guild_id)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS economy (
+        user_id VARCHAR(255) NOT NULL,
+        guild_id VARCHAR(255) NOT NULL,
+        balance BIGINT DEFAULT 0,
+        last_daily TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+        last_steal TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+        PRIMARY KEY (user_id, guild_id)
+    );
+  `);
+  
+  // Safeguards for tables that already exist
+  await pool.query(`
+    ALTER TABLE economy ADD COLUMN IF NOT EXISTS last_steal TIMESTAMP WITH TIME ZONE DEFAULT NULL;
+  `);
+
+  console.log('Database tables verified and ready.');
 }
 
 async function getUserData(userId) {
@@ -99,6 +117,15 @@ async function getUserData(userId) {
   return res.rows[0];
 }
 
+// Helper to grab or generate wallet profiles locked to specific servers
+async function getEconomyData(userId, guildId) {
+  const res = await pool.query('SELECT * FROM economy WHERE user_id = $1 AND guild_id = $2', [userId, guildId]);
+  if (res.rows.length === 0) {
+    const insertRes = await pool.query('INSERT INTO economy (user_id, guild_id, balance) VALUES ($1, $2, 0) RETURNING *', [userId, guildId]);
+    return insertRes.rows[0];
+  }
+  return res.rows[0];
+}
 
 // ==========================================
 // === 3. CLIENT INITIALIZATION & PRESENCE ===
@@ -145,18 +172,19 @@ const commands = [
     description: 'Check your current level and progress',
     options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'Check another citizen\'s level', required: false }]
   },
-  {
-    name: 'play',
-    description: 'Play a YouTube or Spotify link in your voice channel',
-    options: [{ name: 'link', type: ApplicationCommandOptionType.String, description: 'The YouTube or Spotify URL', required: true }]
+  { 
+    name: 'daily',
+    description: 'Claim your daily allowance of money'
   },
   {
-    name: 'stop',
-    description: 'Stop the music player and make the bot leave the channel'
+    name: 'balance',
+    description: 'Check how much money you or another citizen has',
+    options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'The citizen whose wallet you want to view', required: false }]
   },
   {
-    name: 'queue',
-    description: 'Display the currently playing track and upcoming songs'
+    name: 'steal',
+    description: 'Attempt to pickpocket another user\'s money',
+    options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'The citizen you want to steal from', required: true }]
   },
   {
     name: 'purge',
@@ -729,7 +757,136 @@ client.on('interactionCreate', async interaction => {
 
     return await interaction.reply({ embeds: [lbEmbed], components: [row] });
   }
+  
+  // ----------------------------------------
+  // --- [ECONOMY]: COMMAND: DAILY ---
+  // ----------------------------------------
+  if (commandName === 'daily') {
+    // Making this ephemeral makes the reply private to the user
+    await interaction.deferReply({ ephemeral: true });
+    const ecoData = await getEconomyData(user.id, guildId);
+    
+    // Generates a random payout between 1 and 100 Aidan-Bucks
+    const DAILY_AMOUNT = Math.floor(Math.random() * 100) + 1;
+    const cooldownTime = 24 * 60 * 60 * 1000; // 24 hours
 
+    if (ecoData.last_daily) {
+      const lastDailyTime = new Date(ecoData.last_daily).getTime();
+      if (now - lastDailyTime < cooldownTime) {
+        const timeRemaining = cooldownTime - (now - lastDailyTime);
+        const hours = Math.floor(timeRemaining / (1000 * 60 * 60));
+        const minutes = Math.floor((timeRemaining % (1000 * 60 * 60)) / (1000 * 60));
+        
+        const dailyFailEmbed = new EmbedBuilder()
+          .setDescription(`You have already claimed your daily today. Come back in **${hours}h ${minutes}m**.`)
+          .setColor('#2b2d31');
+        return await interaction.editReply({ embeds: [dailyFailEmbed] });
+      }
+    }
+
+    await pool.query('UPDATE economy SET balance = balance + $1, last_daily = NOW() WHERE user_id = $2', [DAILY_AMOUNT, user.id]);
+    const dailySuccessEmbed = new EmbedBuilder()
+      .setDescription(`**+${DAILY_AMOUNT}** added to your account! Your new balance is **${Number(ecoData.balance) + DAILY_AMOUNT}**.`)
+      .setColor('#2b2d31');
+    return await interaction.editReply({ embeds: [dailySuccessEmbed] });
+  }
+
+// ----------------------------------------
+  // --- [ECONOMY]: COMMAND: BALANCE ---
+  // ----------------------------------------
+  if (commandName === 'balance') {
+    const targetUser = interaction.options.getUser('user') || user;
+    const ecoData = await getEconomyData(targetUser.id, guildId);
+
+    const balEmbed = new EmbedBuilder()
+      .setAuthor({ name: targetUser.username, iconURL: targetUser.displayAvatarURL() })
+      .setDescription(`<@${targetUser.id}> currently holds **${ecoData.balance}**`)
+      .setColor('#2b2d31');
+    
+    // Public reply
+    return await interaction.reply({ embeds: [balEmbed] });
+  }
+
+// ----------------------------------------
+  // --- [ECONOMY]: COMMAND: STEAL ---
+  // ----------------------------------------
+  if (commandName === 'steal') {
+    const targetUser = interaction.options.getUser('user');
+    if (targetUser.id === user.id) {
+      return await interaction.reply({ content: 'You cannot rob yourself, genius.', ephemeral: true });
+    }
+
+    // Public deferral so everyone sees the execution results
+    await interaction.deferReply();
+    const attackerEco = await getEconomyData(user.id, guildId);
+    const victimEco = await getEconomyData(targetUser.id, guildId);
+
+    // --- 1 HOUR COOLDOWN CHECK ---
+    const stealCooldown = 60 * 60 * 1000; // 1 hour in milliseconds
+    if (attackerEco.last_steal) {
+      const lastStealTime = new Date(attackerEco.last_steal).getTime();
+      if (now - lastStealTime < stealCooldown) {
+        const timeRemaining = stealCooldown - (now - lastStealTime);
+        const minutes = Math.floor(timeRemaining / (1000 * 60));
+        const seconds = Math.floor((timeRemaining % (1000 * 60)) / 1000);
+
+        const stealFailEmbed = new EmbedBuilder()
+          .setDescription(`Your criminal notoriety status is too high! Wait **${minutes}m ${seconds}s** before pickpocketing someone else.`)
+          .setColor('#2b2d31');
+        return await interaction.editReply({ embeds: [stealFailEmbed] });
+      }
+    }
+
+    if (Number(victimEco.balance) <= 50) {
+      return await interaction.editReply({ content: `Leave them alone, <@${targetUser.id}> is broke right now!` });
+    }
+
+    // Update the cooldown timestamp immediately
+    await pool.query('UPDATE economy SET last_steal = NOW() WHERE user_id = $1', [user.id]);
+
+    const success = Math.random() > 0.5; // 50% chance
+    if (success) {
+      // Steals dynamically between 10% to 30% of their money
+      const stealPercent = (Math.floor(Math.random() * 21) + 10) / 100;
+      const stolenAmount = Math.floor(Number(victimEco.balance) * stealPercent);
+
+      await pool.query('UPDATE economy SET balance = balance + $1 WHERE user_id = $2', [stolenAmount, user.id]);
+      await pool.query('UPDATE economy SET balance = balance - $1 WHERE user_id = $2', [stolenAmount, targetUser.id]);
+
+      // Try to send a direct message to the victim
+      try {
+        await targetUser.send(`Someone stole **${stolenAmount}** from your wallet in **${interaction.guild.name}**.`);
+      } catch (dmError) {
+        console.log(`Could not send steal notification DM to ${targetUser.tag}`);
+      }
+
+      const robEmbed = new EmbedBuilder()
+        .setDescription(`<@${user.id}> pickpocketed <@${targetUser.id}> and ran off with **${stolenAmount}**.`)
+        .setColor('#2b2d31');
+      return await interaction.editReply({ embeds: [robEmbed] });
+    } else {
+      // Busted! Penalty of 100 Aidan-Bucks paid to the victim
+      const fine = Math.min(100, Number(attackerEco.balance));
+      await pool.query('UPDATE economy SET balance = balance - $1 WHERE user_id = $2', [fine, user.id]);
+      await pool.query('UPDATE economy SET balance = balance + $1 WHERE user_id = $2', [fine, targetUser.id]);
+
+      // Array of funny failure scenarios
+      const failureScenarios = [
+        `<@${user.id}> tried to steal from <@${targetUser.id}> but tripped over a trash can. They paid a fine of **${fine}** to the victim.`,
+        `<@${user.id}> sneezed incredibly loudly right into <@${targetUser.id}>'s ear while trying to be stealthy. They dropped **${fine}** while running away.`,
+        `<@${user.id}> almost got away with it, but their light-up sneakers started flashing. They had to pay **${fine}** to clear their name.`
+      ];
+
+      // Pick a random scenario from the list
+      const randomScenario = failureScenarios[Math.floor(Math.random() * failureScenarios.length)];
+
+      const bustedEmbed = new EmbedBuilder()
+        .setDescription(randomScenario)
+        .setColor('#2b2d31');
+      return await interaction.editReply({ embeds: [bustedEmbed] });
+    }
+  }
+  
   // ----------------------------------------
   // --- [UTILITY]: COMMAND: PING ---
   // ----------------------------------------
