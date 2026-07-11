@@ -145,6 +145,19 @@ const commands = [
     options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'Check another citizen\'s level', required: false }]
   },
   {
+    name: 'play',
+    description: 'Play a YouTube or Spotify link in your voice channel',
+    options: [{ name: 'link', type: ApplicationCommandOptionType.String, description: 'The YouTube or Spotify URL', required: true }]
+  },
+  {
+    name: 'stop',
+    description: 'Stop the music player and make the bot leave the channel'
+  },
+  {
+    name: 'queue',
+    description: 'Display the currently playing track and upcoming songs'
+  },
+  {
     name: 'purge',
     description: 'Delete a specified number of messages',
     options: [
