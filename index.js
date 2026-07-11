@@ -744,20 +744,13 @@ client.on('interactionCreate', async interaction => {
 
       // Validate platform and extract data
       const urlType = play.yt_validate(inputUrl);
-      const isSpotify = inputUrl.includes('open.spotify.com');
+      const isSpotify = inputUrl.includes('spotify.com');
 
       if (!urlType && !isSpotify) {
         return await interaction.editReply({ content: 'Please provide a valid YouTube or Spotify link.' });
       }
 
-      // Configure authentication options using your exported file
-      const playDlOptions = { 
-        cookie: path.join(__dirname, 'cookies.txt'),
-        htc: true 
-      };
-
-if (isSpotify) {
-        // Extracted data cleanly without the broken timeout check
+      if (isSpotify) {
         const spotifyData = await play.spotify(inputUrl);
         
         if (spotifyData.type === 'track') {
@@ -770,21 +763,8 @@ if (isSpotify) {
         } else {
           return await interaction.editReply({ content: 'Playlists and albums are not supported yet, please provide a direct track link.' });
         }
-      }
-        
-        if (spotifyData.type === 'track') {
-          trackTitle = `${spotifyData.name} - ${spotifyData.artists.map(a => a.name).join(', ')}`;
-          const searchResult = await play.search(trackTitle, { limit: 1 });
-          if (!searchResult.length) {
-            return await interaction.editReply({ content: 'Could not find a playable stream for this Spotify track.' });
-          }
-          streamUrl = searchResult[0].url;
-        } else {
-          return await interaction.editReply({ content: 'Playlists and albums are not supported yet, please provide a direct track link.' });
-        }
       } else {
-        // Pass our authentication options into video basic info
-        const videoInfo = await play.video_basic_info(inputUrl, playDlOptions);
+        const videoInfo = await play.video_basic_info(inputUrl);
         trackTitle = videoInfo.video_details.title || "YouTube Track";
         streamUrl = inputUrl;
       }
@@ -829,14 +809,9 @@ if (isSpotify) {
               return;
             }
 
-            // Pass authentication configuration into the stream itself to prevent bot detection crashes
-            const stream = await play.stream(activeSong.url, { 
-              quality: 0,
-              cookie: path.join(__dirname, 'cookies.txt'),
-              htc: true
-            });
-            
+            const stream = await play.stream(activeSong.url, { quality: 0 });
             const resource = createAudioResource(stream.stream, { inputType: stream.type });
+            
             serverQueue.player.play(resource);
 
             const playEmbed = new EmbedBuilder()
