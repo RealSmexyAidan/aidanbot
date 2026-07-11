@@ -473,7 +473,6 @@ client.on('interactionCreate', async interaction => {
   }
 
   if (!interaction.isChatInputCommand()) return;
-  const { commandName, user } = interaction;
 
   // ----------------------------------------
   // --- GLOBAL ANTI-SPAM COOLDOWN ENGINE ---
