@@ -1,3 +1,6 @@
+// ==========================================
+// === 1. DEPENDENCIES & CONFIGURATION ===
+// ==========================================
 const { createCanvas, loadImage, GlobalFonts } = require('@napi-rs/canvas');
 const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ApplicationCommandOptionType, Collection, ActivityType, Partials, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const express = require('express');
@@ -7,13 +10,13 @@ const path = require('path');
 // Register the exact font filename you uploaded
 GlobalFonts.registerFromPath(path.join(__dirname, 'ARIAL.TTF'), 'CustomArial');
 
-// 1. Keep-Alive Web Server for Railway
+// Keep-Alive Web Server for Railway
 const app = express();
 const PORT = process.env.PORT || 3000;
 app.get('/', (req, res) => res.send('Aidan Bot Status, Commands, Levels, and Stats are Online!'));
 app.listen(PORT, () => console.log(`Web server running on port ${PORT}`));
 
-// 2. Read Tokens / Credentials
+// Read Tokens / Credentials
 let TOKEN = process.env.TOKEN;
 let CLIENT_ID = process.env.CLIENT_ID;
 let DATABASE_URL = process.env.DATABASE_URL;
@@ -29,13 +32,15 @@ if (!TOKEN || !CLIENT_ID || !DATABASE_URL) {
   }
 }
 
-// Initialize Database Connection Pool
+
+// ==========================================
+// === 2. DATABASE UTILITIES ===
+// ==========================================
 const pool = new Pool({
   connectionString: DATABASE_URL,
   ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
 });
 
-// Database Helper Functions
 async function initDb() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
@@ -57,7 +62,10 @@ async function getUserData(userId) {
   return res.rows[0];
 }
 
-// 3. Create Bot Client Instance
+
+// ==========================================
+// === 3. CLIENT INITIALIZATION & PRESENCE ===
+// ==========================================
 const client = new Client({ 
   intents: [
     GatewayIntentBits.Guilds,
@@ -75,8 +83,12 @@ const client = new Client({
 
 const cooldowns = new Collection();
 const xpCooldowns = new Set();
+const statuses = ["Made by Aidan", "Watching Aidansville"];
 
-// 4. Global Slash Commands Array
+
+// ==========================================
+// === 4. GLOBAL SLASH COMMANDS ARRAY ===
+// ==========================================
 const commands = [
   { name: 'ping', description: 'Checks the latency of Aidan Bot' },
   {
@@ -156,13 +168,15 @@ const commands = [
   }
 ];
 
-const statuses = ["Made by Aidan", "Watching Aidansville"];
 
-// 5. Ready Event Handler
+// ==========================================
+// === 5. READY EVENT HANDLER ===
+// ==========================================
 client.once('ready', async () => {
   console.log(`🤖 Logged in as ${client.user.tag}!`);
   await initDb(); 
   
+  // Rotating Status Sequence
   let statusIndex = 0;
   client.user.setPresence({
       activities: [{ name: statuses[statusIndex], type: ActivityType.Custom }],
@@ -173,9 +187,8 @@ client.once('ready', async () => {
       client.user.setPresence({ activities: [{ name: statuses[statusIndex], type: ActivityType.Custom }], status: 'online' });
   }, 15000); 
 
-  // --- AUTOMATED SERVER STATS CHANNEL TRACKER ---
+  // Server Stats Counter Tracker
   const STATS_CHANNEL_ID = '1444216285964800093'; 
-  
   const updateStats = async () => {
     try {
       const channel = await client.channels.fetch(STATS_CHANNEL_ID);
@@ -188,11 +201,10 @@ client.once('ready', async () => {
       console.error("Failed to update stats channel name:", error);
     }
   };
-
   updateStats();
   setInterval(updateStats, 720000);
 
-  // Register Global Application Commands
+  // Register Global Commands with Discord Engine
   const rest = new REST({ version: '10' }).setToken(TOKEN);
   try {
     console.log('Started refreshing application (/) commands.');
@@ -203,7 +215,10 @@ client.once('ready', async () => {
   }
 });
 
-// 6. Message Tracking System (XP and Role Unlocks)
+
+// ==========================================
+// === 6. CHAT XP & LEVEL TRACKING ===
+// ==========================================
 client.on('messageCreate', async message => {
   if (message.author.bot || !message.guild) return;
   if (xpCooldowns.has(message.author.id)) return;
@@ -214,7 +229,6 @@ client.on('messageCreate', async message => {
   const xpGained = Math.floor(Math.random() * 11) + 15;
   let newXp = userData.xp + xpGained;
   let newLevel = userData.level;
-
   const xpNeeded = (newLevel * 50) + 50;
 
   if (newXp >= xpNeeded) {
@@ -223,7 +237,6 @@ client.on('messageCreate', async message => {
     
     const LEVEL_UP_CHANNEL_ID = '1519015856837890088'; 
     const levelChannel = message.guild.channels.cache.get(LEVEL_UP_CHANNEL_ID);
-
     const lvlUpEmbed = new EmbedBuilder()
       .setDescription(`<@${userId}> is now **Level ${newLevel}**`)
       .setColor('#2b2d31');
@@ -234,9 +247,9 @@ client.on('messageCreate', async message => {
       message.channel.send({ embeds: [lvlUpEmbed] });
     }
 
+    // Milestones Role Unlocks
     try {
       const member = await message.guild.members.fetch(userId);
-      
       if (newLevel >= 50) {
         const role = message.guild.roles.cache.get('1505615177972846682'); 
         if (role && !member.roles.cache.has(role.id)) await member.roles.add(role);
@@ -256,12 +269,14 @@ client.on('messageCreate', async message => {
   }
 
   await pool.query('UPDATE users SET xp = $1, level = $2 WHERE user_id = $3', [newXp, newLevel, userId]);
-
   xpCooldowns.add(userId);
   setTimeout(() => xpCooldowns.delete(userId), 5000);
 });
 
-// 7. Welcomer System Module
+
+// ==========================================
+// === 7. WELCOMER SYSTEM MODULE ===
+// ==========================================
 client.on('guildMemberAdd', async member => {
   const WELCOME_CHANNEL_ID = '1397011380162531348';
   const channel = member.guild.channels.cache.get(WELCOME_CHANNEL_ID);
@@ -270,22 +285,71 @@ client.on('guildMemberAdd', async member => {
       .setDescription(`<@${member.id}> has crossed the Aidan wall. Welcome to Aidansville!`)
       .setColor('#2b2d31');
     channel.send({ embeds: [welcomeEmbed] });
- }
+  }
 
   // Automatically assign the default member role on join
   try {
-    const defaultRole = member.guild.roles.cache.get('1397383481465507861'); // Uses your role ID
-    if (defaultRole) {
-      await member.roles.add(defaultRole);
-    }
+    const defaultRole = member.guild.roles.cache.get('1397383481465507861'); 
+    if (defaultRole) await member.roles.add(defaultRole);
   } catch (error) {
-    // Left completely silent on success, only catches if Discord permissions fail
+    // Left completely silent on success
   }
 });
 
-// 8. Interaction and Command Logic Handler
+
+// ==========================================
+// === 8. REACTION ROLE MODULES ===
+// ==========================================
+const REACTION_MESSAGE_ID = '1500691229493694546'; 
+const REACTION_CHANNEL_ID = '1455482928103686410'; 
+
+const reactionRoles = {
+  '📢': '1469584337895686237', 
+  '🤖': '1469584568578343045',
+  '\u{1F4AC}': '1456407903702351925'
+};
+
+// Add Reaction Role
+client.on('messageReactionAdd', async (reaction, user) => {
+  if (user.bot || reaction.message.id !== REACTION_MESSAGE_ID) return;
+  if (reaction.partial) {
+    try { await reaction.fetch(); } catch (error) { return console.error(error); }
+  }
+  const roleId = reactionRoles[reaction.emoji.name];
+  if (!roleId) return;
+  try {
+    const guild = reaction.message.guild;
+    const member = await guild.members.fetch(user.id);
+    const role = guild.roles.cache.get(roleId);
+    if (role && !member.roles.cache.has(role.id)) await member.roles.add(role);
+  } catch (error) { console.error(error); }
+});
+
+// Remove Reaction Role
+client.on('messageReactionRemove', async (reaction, user) => {
+  if (user.bot || reaction.message.id !== REACTION_MESSAGE_ID) return;
+  if (reaction.partial) {
+    try { await reaction.fetch(); } catch (error) { return console.error(error); }
+  }
+  const roleId = reactionRoles[reaction.emoji.name];
+  if (!roleId) return;
+  try {
+    const guild = reaction.message.guild;
+    const member = await guild.members.fetch(user.id);
+    const role = guild.roles.cache.get(roleId);
+    if (role && member.roles.cache.has(role.id)) await member.roles.remove(role);
+  } catch (error) { console.error(error); }
+});
+
+
+// ==========================================
+// === 9. MAIN INTERACTION CREATE HANDLER ===
+// ==========================================
 client.on('interactionCreate', async interaction => {
-  // --- LEADERBOARD BUTTON INTERACTION PROCESSOR ---
+  
+  // ----------------------------------------
+  // --- BUTTON ACTIONS: LEADERBOARD ---
+  // ----------------------------------------
   if (interaction.isButton()) {
     if (interaction.customId === 'lb_levels' || interaction.customId === 'lb_daps') {
       const medals = ['🥇', '🥈', '🥉'];
@@ -295,7 +359,6 @@ client.on('interactionCreate', async interaction => {
       if (interaction.customId === 'lb_levels') {
         title = 'Aidansville Level Leaderboard';
         const res = await pool.query('SELECT * FROM users ORDER BY level DESC, xp DESC LIMIT 10');
-
         res.rows.forEach((player, idx) => {
           const prefix = idx < 3 ? `${medals[idx]} ` : `**${idx + 1}** `;
           const nextLvlXp = (player.level * 50) + 50;
@@ -304,7 +367,6 @@ client.on('interactionCreate', async interaction => {
       } else {
         title = 'Aidansville Dap Leaderboard';
         const res = await pool.query('SELECT * FROM users ORDER BY daps DESC LIMIT 10');
-
         res.rows.forEach((player, idx) => {
           const prefix = idx < 3 ? `${medals[idx]} ` : `**${idx + 1}** `;
           description += `${prefix}<@${player.user_id}> • **${player.daps} daps** given\n`;
@@ -324,13 +386,12 @@ client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
   const { commandName, user } = interaction;
 
-  // --- MODERATION PANEL COMMAND ---
+  // ----------------------------------------
+  // --- [MODERATION]: COMMAND: MOD ---
+  // ----------------------------------------
   if (commandName === 'mod') {
     if (!interaction.member.permissions.has('ModerateMembers')) {
-      return await interaction.reply({ 
-        content: 'You do not have permission to use moderation commands', 
-        ephemeral: true 
-      });
+      return await interaction.reply({ content: 'You do not have permission to use moderation commands', ephemeral: true });
     }
 
     const subcommand = interaction.options.getSubcommand();
@@ -340,9 +401,7 @@ client.on('interactionCreate', async interaction => {
     const logChannel = interaction.guild.channels.cache.get(LOG_CHANNEL_ID);
 
     let targetMember;
-    try {
-      targetMember = await interaction.guild.members.fetch(targetUser.id);
-    } catch (err) {
+    try { targetMember = await interaction.guild.members.fetch(targetUser.id); } catch (err) {
       return await interaction.reply({ content: 'Could not find that user in this server.', ephemeral: true });
     }
 
@@ -353,168 +412,99 @@ client.on('interactionCreate', async interaction => {
     await interaction.deferReply({ ephemeral: true });
 
     if (subcommand === 'warn') {
-      try {
-        await targetUser.send(`You have been warned in **${interaction.guild.name}**\n**Reason:** ${reason}`);
-      } catch (e) {
-        console.log(`Could not DM user ${targetUser.tag}`);
-      }
-
-      const logEmbed = new EmbedBuilder()
-        .setTitle('User Warned')
-        .addFields(
-          { name: 'Target', value: `<@${targetUser.id}>\nTag: \`${targetUser.tag}\`\nID: \`${targetUser.id}\``, inline: true },
-          { name: 'Moderator', value: `<@${interaction.user.id}>`, inline: true },
-          { name: 'Reason', value: reason }
-        )
-        .setColor('#2b2d31');
-
+      try { await targetUser.send(`You have been warned in **${interaction.guild.name}**\n**Reason:** ${reason}`); } catch (e) {}
+      const logEmbed = new EmbedBuilder().setTitle('User Warned').setColor('#2b2d31').addFields(
+        { name: 'Target', value: `<@${targetUser.id}>\nTag: \`${targetUser.tag}\`\nID: \`${targetUser.id}\``, inline: true },
+        { name: 'Moderator', value: `<@${interaction.user.id}>`, inline: true },
+        { name: 'Reason', value: reason }
+      );
       if (logChannel) logChannel.send({ embeds: [logEmbed] });
       return await interaction.editReply({ content: `Successfully warned <@${targetUser.id}>.` });
     }
 
     if (subcommand === 'timeout') {
       const duration = interaction.options.getInteger('duration');
-      
-      if (!targetMember.moderatable) {
-        return await interaction.editReply({ content: 'You cannot time out users that are higher than you' });
-      }
-
-      try {
-        await targetUser.send(`You have been timed out in **${interaction.guild.name}** for **${duration} minutes**.\n**Reason:** ${reason}\n\n*Appeal by messaging @realsmexyaidan*`);
-      } catch (e) {
-        console.log(`Could not DM user ${targetUser.tag}`);
-      }
-
+      if (!targetMember.moderatable) return await interaction.editReply({ content: 'You cannot time out users that are higher than you' });
+      try { await targetUser.send(`You have been timed out in **${interaction.guild.name}** for **${duration} minutes**.\n**Reason:** ${reason}\n\n*Appeal by messaging @realsmexyaidan*`); } catch (e) {}
       await targetMember.timeout(duration * 60 * 1000, reason);
-
-      const logEmbed = new EmbedBuilder()
-        .setTitle('User Timed Out')
-        .addFields(
-          { name: 'Target', value: `<@${targetUser.id}>\nTag: \`${targetUser.tag}\`\nID: \`${targetUser.id}\``, inline: true },
-          { name: 'Moderator', value: `<@${interaction.user.id}>`, inline: true },
-          { name: 'Duration', value: `${duration} minutes`, inline: true },
-          { name: 'Reason', value: reason }
-        )
-        .setColor('#2b2d31');
-
+      const logEmbed = new EmbedBuilder().setTitle('User Timed Out').setColor('#2b2d31').addFields(
+        { name: 'Target', value: `<@${targetUser.id}>\nTag: \`${targetUser.tag}\`\nID: \`${targetUser.id}\``, inline: true },
+        { name: 'Moderator', value: `<@${interaction.user.id}>`, inline: true },
+        { name: 'Duration', value: `${duration} minutes`, inline: true },
+        { name: 'Reason', value: reason }
+      );
       if (logChannel) logChannel.send({ embeds: [logEmbed] });
       return await interaction.editReply({ content: `Successfully timed out <@${targetUser.id}> for ${duration} minutes.` });
     }
 
     if (subcommand === 'ban') {
-      if (!targetMember.bannable) {
-        return await interaction.editReply({ content: 'You cannot time out users that are higher than you' });
-      }
-
-      try {
-        await targetUser.send(`You have been banned from **${interaction.guild.name}**.\n**Reason:** ${reason}\n\n*Appeal by messaging @realsmexyaidan*`);
-      } catch (e) {
-        console.log(`Could not DM user ${targetUser.tag}`);
-      }
-
+      if (!targetMember.bannable) return await interaction.editReply({ content: 'You cannot time out users that are higher than you' });
+      try { await targetUser.send(`You have been banned from **${interaction.guild.name}**.\n**Reason:** ${reason}\n\n*Appeal by messaging @realsmexyaidan*`); } catch (e) {}
       await targetMember.ban({ reason: reason });
-
-      const logEmbed = new EmbedBuilder()
-        .setTitle('User Banned')
-        .addFields(
-          { name: 'Target', value: `<@${targetUser.id}>\nTag: \`${targetUser.tag}\`\nID: \`${targetUser.id}\``, inline: true },
-          { name: 'Moderator', value: `<@${interaction.user.id}>`, inline: true },
-          { name: 'Reason', value: reason }
-        )
-        .setColor('#2b2d31');
-
+      const logEmbed = new EmbedBuilder().setTitle('User Banned').setColor('#2b2d31').addFields(
+        { name: 'Target', value: `<@${targetUser.id}>\nTag: \`${targetUser.tag}\`\nID: \`${targetUser.id}\``, inline: true },
+        { name: 'Moderator', value: `<@${interaction.user.id}>`, inline: true },
+        { name: 'Reason', value: reason }
+      );
       if (logChannel) logChannel.send({ embeds: [logEmbed] });
       return await interaction.editReply({ content: `Successfully banned ${targetUser.tag}.` });
     }
   }
 
-  // --- PURGE COMMAND ---
+  // ----------------------------------------
+  // --- [MODERATION]: COMMAND: PURGE ---
+  // ----------------------------------------
   if (commandName === 'purge') {
     if (!interaction.member.permissions.has('ManageMessages')) {
-      return await interaction.reply({ 
-        content: 'You do not have permission to use the purge command', 
-        ephemeral: true 
-      });
+      return await interaction.reply({ content: 'You do not have permission to use the purge command', ephemeral: true });
     }
-
     const amount = interaction.options.getInteger('amount');
-    const LOG_CHANNEL_ID = '1396953023426727998'; // Uses your set log channel ID
+    const LOG_CHANNEL_ID = '1396953023426727998'; 
     const logChannel = interaction.guild.channels.cache.get(LOG_CHANNEL_ID);
 
-    if (amount < 1 || amount > 100) {
-      return await interaction.reply({ 
-        content: 'Please provide an amount between 1 and 100.', 
-        ephemeral: true 
-      });
-    }
-
+    if (amount < 1 || amount > 100) return await interaction.reply({ content: 'Please provide an amount between 1 and 100.', ephemeral: true });
     await interaction.deferReply({ ephemeral: true });
 
     try {
       const deleted = await interaction.channel.bulkDelete(amount, true);
-      
-      // Send a clean log embed to the logging channel
-      const logEmbed = new EmbedBuilder()
-        .setTitle('Messages Purged')
-        .addFields(
-          { name: 'Channel', value: `<#${interaction.channel.id}>`, inline: true },
-          { name: 'Moderator', value: `<@${interaction.user.id}>`, inline: true },
-          { name: 'Amount Requested', value: `\`${amount}\``, inline: true },
-          { name: 'Actual Deleted', value: `\`${deleted.size}\``, inline: true }
-        )
-        .setColor('#2b2d31');
-
+      const logEmbed = new EmbedBuilder().setTitle('Messages Purged').setColor('#2b2d31').addFields(
+        { name: 'Channel', value: `<#${interaction.channel.id}>`, inline: true },
+        { name: 'Moderator', value: `<@${interaction.user.id}>`, inline: true },
+        { name: 'Amount Requested', value: `\`${amount}\``, inline: true },
+        { name: 'Actual Deleted', value: `\`${deleted.size}\``, inline: true }
+      );
       if (logChannel) logChannel.send({ embeds: [logEmbed] });
-
-      return await interaction.editReply({ 
-        content: `Successfully cleared \`${deleted.size}\` messages from this channel` 
-      });
+      return await interaction.editReply({ content: `Successfully cleared \`${deleted.size}\` messages from this channel` });
     } catch (error) {
-      console.error('Error purging messages:', error);
-      return await interaction.editReply({ 
-        content: 'There was an error trying to purge messages in this channel (Messages older than 14 days cannot be purged)' 
-      });
+      return await interaction.editReply({ content: 'There was an error trying to purge messages in this channel (Messages older than 14 days cannot be purged)' });
     }
   }
 
-// --- QUOTE COMMAND ---
+  // ----------------------------------------
+  // --- [UTILITY]: COMMAND: QUOTE ---
+  // ----------------------------------------
   if (commandName === 'quote') {
     const messageId = interaction.options.getString('message_id');
-
-    await interaction.deferReply(); // Image rendering takes a split second
-
+    await interaction.deferReply();
     try {
       const targetMessage = await interaction.channel.messages.fetch(messageId);
-      
-      if (!targetMessage.content) {
-        return await interaction.editReply({ 
-          content: 'That message does not contain any text to quote' 
-        });
-      }
+      if (!targetMessage.content) return await interaction.editReply({ content: 'That message does not contain any text to quote' });
 
-      // 1. Create a canvas layout (800x400 landscape format)
       const canvas = createCanvas(800, 400);
       const ctx = canvas.getContext('2d');
-
-      // Fill solid black background
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // 2. Load and draw the User's Avatar with a smooth fade-to-black gradient
       const avatarUrl = targetMessage.author.displayAvatarURL({ extension: 'png', size: 512 });
       const avatarImage = await loadImage(avatarUrl);
-      
-      // Draw avatar on the left half
       ctx.drawImage(avatarImage, 0, 0, 400, 400);
 
-      // Apply a horizontal black gradient mask over the avatar to fade it out smoothly
       const gradient = ctx.createLinearGradient(150, 0, 400, 0);
       gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
       gradient.addColorStop(1, 'rgba(0, 0, 0, 1)');
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, 400, 400);
 
-// 3. Render the Quote Text (Centered with Advanced Auto-Resizing & Safety Cap)
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -523,7 +513,6 @@ client.on('interactionCreate', async interaction => {
       const maxWidth = 350;
       const xPos = 600; 
 
-      // 1. Initial wrap calculation at standard 32px size
       ctx.font = '32px "CustomArial"';
       let line = '';
       let lines = [];
@@ -533,95 +522,55 @@ client.on('interactionCreate', async interaction => {
         if (metrics.width > maxWidth && n > 0) {
           lines.push(line.trim());
           line = words[n] + ' ';
-        } else {
-          line = testLine;
-        }
+        } else { line = testLine; }
       }
       lines.push(line.trim());
 
-      // 2. Advanced multi-tier font size checking
-      let fontSize = 32;
-      let lineSpacing = 42;
-      let startY = 160;
+      let fontSize = 32; let lineSpacing = 42; let startY = 160;
+      if (lines.length > 8) { fontSize = 14; lineSpacing = 18; startY = 60; }
+      else if (lines.length > 5) { fontSize = 20; lineSpacing = 26; startY = 100; }
+      else if (lines.length > 3) { fontSize = 26; lineSpacing = 34; startY = 130; }
 
-      // Check how many lines were generated and scale down dynamically
-      if (lines.length > 8) {
-        // ULTRA LONG TEXT -> Drop to 14px small font
-        fontSize = 14;
-        lineSpacing = 18;
-        startY = 60; 
-      } else if (lines.length > 5) {
-        // Very Long Text -> 20px
-        fontSize = 20;
-        lineSpacing = 26;
-        startY = 100;
-      } else if (lines.length > 3) {
-        // Medium Text -> 26px
-        fontSize = 26;
-        lineSpacing = 34;
-        startY = 130;
-      }
-
-      // 3. Re-calculate text wrapping based on chosen final font size
       ctx.font = `${fontSize}px "CustomArial"`;
-      line = '';
-      lines = [];
+      line = ''; lines = [];
       for (let n = 0; n < words.length; n++) {
         let testLine = line + words[n] + ' ';
         let metrics = ctx.measureText(testLine);
         if (metrics.width > maxWidth && n > 0) {
           lines.push(line.trim());
           line = words[n] + ' ';
-        } else {
-          line = testLine;
-        }
+        } else { line = testLine; }
       }
       lines.push(line.trim());
 
-      // 4. HARD SAFETY LIMIT: If it STILL exceeds what can fit on screen, clip it safely
       const maxAllowedLines = fontSize === 14 ? 14 : (fontSize === 20 ? 9 : 6);
       if (lines.length > maxAllowedLines) {
         lines = lines.slice(0, maxAllowedLines);
-        // Add an ellipsis to the last visible line so users know it was cut off
         lines[lines.length - 1] = lines[lines.length - 1].replace(/[\s,.-]+$/, "") + "...";
       }
 
-      // Draw each line of text cleanly
       let yPos = startY;
-      lines.forEach((textLine) => {
-        ctx.fillText(textLine, xPos, yPos);
-        yPos += lineSpacing;
-      });
+      lines.forEach((textLine) => { ctx.fillText(textLine, xPos, yPos); yPos += lineSpacing; });
 
-      // 5. Render Author Details (Dynamically follows the end of the text block)
       yPos += 20; 
-      ctx.fillStyle = '#aaaaaa';
-      ctx.font = 'italic 22px "CustomArial"';
-      ctx.textAlign = 'center';
+      ctx.fillStyle = '#aaaaaa'; ctx.font = 'italic 22px "CustomArial"'; ctx.textAlign = 'center';
       ctx.fillText(`- ${targetMessage.author.displayName || targetMessage.author.username}`, xPos, yPos);
 
       yPos += 26;
-      ctx.fillStyle = '#666666';
-      ctx.font = '16px "CustomArial"';
-      ctx.textAlign = 'center';
+      ctx.fillStyle = '#666666'; ctx.font = '16px "CustomArial"'; ctx.textAlign = 'center';
       ctx.fillText(`@${targetMessage.author.username}`, xPos, yPos);
       
-      // 5. Convert canvas matrix into a Discord attachment file
       const buffer = canvas.toBuffer('image/png');
       const attachment = new AttachmentBuilder(buffer, { name: `quote_${targetMessage.id}.png` });
-
-      // Post the image file directly to the channel
       return await interaction.editReply({ files: [attachment] });
-
     } catch (error) {
-      console.error('Error generating quote image:', error);
-      return await interaction.editReply({ 
-        content: 'Could not find that message. Make sure the ID is correct and from this channel' 
-      });
+      return await interaction.editReply({ content: 'Could not find that message. Make sure the ID is correct and from this channel' });
     }
   }
 
-  // --- STANDARD INTERACTION COOLDOWN ENFORCEMENT ---
+  // ----------------------------------------
+  // --- GLOBAL ANTI-SPAM COOLDOWN ENGINE ---
+  // ----------------------------------------
   const COOLDOWN_AMOUNT = 5000; 
   if (!cooldowns.has(commandName)) cooldowns.set(commandName, new Collection());
   const now = Date.now();
@@ -631,16 +580,16 @@ client.on('interactionCreate', async interaction => {
     const expirationTime = timestamps.get(user.id) + COOLDOWN_AMOUNT;
     if (now < expirationTime) {
       const timeLeft = ((expirationTime - now) / 1000).toFixed(1);
-      const cooldownEmbed = new EmbedBuilder()
-        .setDescription(`Please wait **${timeLeft}s** before using \`/${commandName}\` again.`)
-        .setColor('#2b2d31');
+      const cooldownEmbed = new EmbedBuilder().setDescription(`Please wait **${timeLeft}s** before using \`/${commandName}\` again.`).setColor('#2b2d31');
       return interaction.reply({ embeds: [cooldownEmbed], ephemeral: true });
     }
   }
   timestamps.set(user.id, now);
   setTimeout(() => timestamps.delete(user.id), COOLDOWN_AMOUNT);
 
-  // --- INDIVIDUAL LEVEL COMMAND ---
+  // ----------------------------------------
+  // --- [STATS]: COMMAND: LEVEL ---
+  // ----------------------------------------
   if (commandName === 'level') {
     const targetUser = interaction.options.getUser('user') || user;
     const userData = await getUserData(targetUser.id);
@@ -662,7 +611,9 @@ client.on('interactionCreate', async interaction => {
     return await interaction.reply({ embeds: [lvlEmbed] });
   }
 
-  // --- LEADERBOARD COMMAND ---
+  // ----------------------------------------
+  // --- [STATS]: COMMAND: LEADERBOARD ---
+  // ----------------------------------------
   if (commandName === 'leaderboard') {
     const res = await pool.query('SELECT * FROM users ORDER BY level DESC, xp DESC LIMIT 10');
     let description = '';
@@ -681,32 +632,26 @@ client.on('interactionCreate', async interaction => {
       .setThumbnail(interaction.guild.iconURL());
 
     const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId('lb_levels')
-        .setLabel('Level Leaderboard')
-        .setStyle(ButtonStyle.Primary),
-      new ButtonBuilder()
-        .setCustomId('lb_daps')
-        .setLabel('Dap Leaderboard')
-        .setStyle(ButtonStyle.Success)
+      new ButtonBuilder().setCustomId('lb_levels').setLabel('Level Leaderboard').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId('lb_daps').setLabel('Dap Leaderboard').setStyle(ButtonStyle.Success)
     );
 
     return await interaction.reply({ embeds: [lbEmbed], components: [row] });
   }
 
-  // --- COIN FLIP COMMAND ---
+  // ----------------------------------------
+  // --- [FUN]: COMMAND: COINFLIP ---
+  // ----------------------------------------
   if (commandName === 'coinflip') {
     const outcomes = ['Heads', 'Tails'];
     const result = outcomes[Math.floor(Math.random() * outcomes.length)];
-    
-    const coinEmbed = new EmbedBuilder()
-      .setDescription(`<@${interaction.user.id}> flipped a coin and got... **${result}**`)
-      .setColor('#2b2d31');
-
+    const coinEmbed = new EmbedBuilder().setDescription(`<@${interaction.user.id}> flipped a coin and got... **${result}**`).setColor('#2b2d31');
     return await interaction.reply({ embeds: [coinEmbed] });
   }
 
-  // --- PING COMMAND ---
+  // ----------------------------------------
+  // --- [UTILITY]: COMMAND: PING ---
+  // ----------------------------------------
   if (commandName === 'ping') {
     const initialEmbed = new EmbedBuilder().setDescription('Pinging Aidan Bot...').setColor('#2b2d31');
     const sent = await interaction.reply({ embeds: [initialEmbed], fetchReply: true });
@@ -718,7 +663,9 @@ client.on('interactionCreate', async interaction => {
     await interaction.editReply({ embeds: [finalEmbed] });
   }
 
-  // --- DAP UP COMMAND ---
+  // ----------------------------------------
+  // --- [FUN]: COMMAND: DAPUP ---
+  // ----------------------------------------
   if (commandName === 'dapup') {
     const targetUser = interaction.options.getUser('user');
     const senderId = interaction.user.id;
@@ -734,84 +681,14 @@ client.on('interactionCreate', async interaction => {
     await interaction.reply({ embeds: [dapEmbed] });
   }
 
-  // --- SAY COMMAND ---
+  // ----------------------------------------
+  // --- [FUN]: COMMAND: SAY ---
+  // ----------------------------------------
   if (commandName === 'say') {
     const userMessage = interaction.options.getString('message');
     await interaction.reply({ content: userMessage });
   }
 });
 
-// --- REACTION ROLE CONFIGURATION ---
-const REACTION_MESSAGE_ID = '1500691229493694546'; 
-const REACTION_CHANNEL_ID = '1455482928103686410'; 
-
-const reactionRoles = {
-  '📢': '1469584337895686237', 
-  '🤖': '1469584568578343045',
-  '\u{1F4AC}': '1456407903702351925'
-};
-
-// 9. Reaction Role Module - Give Role
-client.on('messageReactionAdd', async (reaction, user) => {
-  if (user.bot) return;
-  if (reaction.message.id !== REACTION_MESSAGE_ID) return;
-
-  if (reaction.partial) {
-    try {
-      await reaction.fetch();
-    } catch (error) {
-      console.error('Something went wrong when fetching the message:', error);
-      return;
-    }
-  }
-
-  const roleId = reactionRoles[reaction.emoji.name];
-  if (!roleId) return;
-
-  try {
-    const guild = reaction.message.guild;
-    const member = await guild.members.fetch(user.id);
-    const role = guild.roles.cache.get(roleId);
-    
-    if (role && !member.roles.cache.has(role.id)) {
-      await member.roles.add(role);
-      console.log(`Assigned role to ${user.tag}`);
-    }
-  } catch (error) {
-    console.error('Error adding reaction role:', error);
-  }
-});
-
-// 10. Reaction Role Module - Remove Role
-client.on('messageReactionRemove', async (reaction, user) => {
-  if (user.bot) return;
-  if (reaction.message.id !== REACTION_MESSAGE_ID) return;
-
-  if (reaction.partial) {
-    try {
-      await reaction.fetch();
-    } catch (error) {
-      console.error('Something went wrong when fetching the message:', error);
-      return;
-    }
-  }
-
-  const roleId = reactionRoles[reaction.emoji.name];
-  if (!roleId) return;
-
-  try {
-    const guild = reaction.message.guild;
-    const member = await guild.members.fetch(user.id);
-    const role = guild.roles.cache.get(roleId);
-    
-    if (role && member.roles.cache.has(role.id)) {
-      await member.roles.remove(role);
-      console.log(`Removed role from ${user.tag}`);
-    }
-  } catch (error) {
-    console.error('Error removing reaction role:', error);
-  }
-});
-
 client.login(TOKEN);
-// © 2026 AIDAN Industries. All rights reserved. This code and its contents are the intellectual property of AIDAN Industries. Unauthorized copying, redistribution, or claiming this code as your own is prohibited.
+// © 2026 AIDAN Industries. All rights reserved.
