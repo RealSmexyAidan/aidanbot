@@ -744,7 +744,7 @@ client.on('interactionCreate', async interaction => {
 
       // Validate platform and extract data
       const urlType = play.yt_validate(inputUrl);
-      const isSpotify = inputUrl.includes('spotify.com');
+      const isSpotify = inputUrl.includes('open.spotify.com');
 
       if (!urlType && !isSpotify) {
         return await interaction.editReply({ content: 'Please provide a valid YouTube or Spotify link.' });
@@ -756,9 +756,21 @@ client.on('interactionCreate', async interaction => {
         htc: true 
       };
 
-      if (isSpotify) {
-        if (play.is_timed_out()) await play.user_data();
+if (isSpotify) {
+        // Extracted data cleanly without the broken timeout check
         const spotifyData = await play.spotify(inputUrl);
+        
+        if (spotifyData.type === 'track') {
+          trackTitle = `${spotifyData.name} - ${spotifyData.artists.map(a => a.name).join(', ')}`;
+          const searchResult = await play.search(trackTitle, { limit: 1 });
+          if (!searchResult.length) {
+            return await interaction.editReply({ content: 'Could not find a playable stream for this Spotify track.' });
+          }
+          streamUrl = searchResult[0].url;
+        } else {
+          return await interaction.editReply({ content: 'Playlists and albums are not supported yet, please provide a direct track link.' });
+        }
+      }
         
         if (spotifyData.type === 'track') {
           trackTitle = `${spotifyData.name} - ${spotifyData.artists.map(a => a.name).join(', ')}`;
