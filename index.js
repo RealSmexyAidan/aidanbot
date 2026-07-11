@@ -1,3 +1,40 @@
+// ============================================================================== 
+//
+//                                     =-::-====-:.-=            
+//                                    ::*@@@@@@@@@#+-::-         
+//                                  =:=@@%%@@@@%#@@@@@=::        
+//                                  :-@@@=+@@@%=-*@@@@@+:-       
+//                                 %.@@@@@@-=+=@@@@@@@@@-:       
+//                                  .+@@@@@@##@@@@@@@%+%+--      
+//                                  ==::+#@@@@@@@@#+-:#@+--     -
+//                                    -::--:::.-*%@@@@@+--   -.-
+//                  @@@               @@@@@@@    -:=@@@@@@*::   +.=@
+//                @@##%@         @%*++++=====+**@@#-+@@@@@#-=@%:-@@
+//     @@@@@@@@@@@%=.:+%%#####%@=...:-:--:......:--*@@@@#--=+-...:
+//  @@#*=......:--:............:..::........  ................ ..:
+//   @@%-:::-=**=:.........................   .=@@=-+**+-.......:
+//               @@@@@@@@@#+=:--=+%@......=:.. ..+@-:*@@@@@%=....*
+//                          @@@@@  @-.:-@%:.......+@+:*@@*=*#-.:+%
+//                                 @:::-@@@@@-...:*@%:.=@@@%=.....
+//                               @@=:::+@   @@@%=.-%@ -::---:..::.
+//                               @@%@@@@      @@@@@       ::%@=:@
+//                                                             .=@@=+@
+//                                                            -.*@@-*@
+//                                                            -.-==:=@
+//                                                              --=-:
+//                                                                    
+//  █████╗ ██╗██████╗  █████╗ ███╗   ██╗    ██████╗  ██████╗ ████████╗
+// ██╔══██╗██║██╔══██╗██╔══██╗████╗  ██║    ██╔══██╗██╔═══██╗╚══██╔══╝
+// ███████║██║██║  ██║███████║██╔██╗ ██║    ██████╔╝██║   ██║   ██║   
+// ██╔══██║██║██║  ██║██╔══██║██║╚██╗██║    ██╔══██╗██║   ██║   ██║   
+// ██║  ██║██║██████╔╝██║  ██║██║ ╚████║    ██████╔╝╚██████╔╝   ██║   
+// ╚═╝  ╚═╝╚═╝╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═══╝    ╚═════╝  ╚═════╝   ╚═╝   
+//
+//                © 2026 AIDAN Industries. All rights reserved.
+//
+// ==============================================================================
+
+
 // ==========================================
 // === 1. DEPENDENCIES & CONFIGURATION ===
 // ==========================================
@@ -7,7 +44,7 @@ const express = require('express');
 const { Pool } = require('pg');
 const path = require('path');
 
-// Register the exact font filename you uploaded
+// Register the exact font filename
 GlobalFonts.registerFromPath(path.join(__dirname, 'ARIAL.TTF'), 'CustomArial');
 
 // Keep-Alive Web Server for Railway
@@ -50,7 +87,7 @@ async function initDb() {
       daps INTEGER DEFAULT 0
     )
   `);
-  console.log('📊 Database table verified and ready.');
+  console.log('Database table verified and ready.');
 }
 
 async function getUserData(userId) {
@@ -101,16 +138,15 @@ const commands = [
     description: 'Make Aidan Bot say something',
     options: [{ name: 'message', type: ApplicationCommandOptionType.String, description: 'The text you want Aidan Bot to repeat', required: true }]
   },
-  { name: 'coinflip', description: 'Flip a coin' },
   { name: 'leaderboard', description: 'Display the Aidansville Level or Dap Leaderboard' },
   {
     name: 'level',
-    description: 'Check your current level and card progress',
+    description: 'Check your current level and progress',
     options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'Check another citizen\'s level', required: false }]
   },
   {
     name: 'purge',
-    description: 'Bulk delete a specified number of messages',
+    description: 'Delete a specified number of messages',
     options: [
       {
         name: 'amount',
@@ -195,7 +231,7 @@ client.once('ready', async () => {
       if (channel && channel.guild) {
         const totalMembers = channel.guild.memberCount;
         await channel.setName(`👥│ ${totalMembers} citizens`);
-        console.log(`📊 Updated server stats counter to: ${totalMembers} citizens`);
+        console.log(`Updated server stats counter to: ${totalMembers} citizens`);
       }
     } catch (error) {
       console.error("Failed to update stats channel name:", error);
@@ -292,10 +328,9 @@ client.on('guildMemberAdd', async member => {
     const defaultRole = member.guild.roles.cache.get('1397383481465507861'); 
     if (defaultRole) await member.roles.add(defaultRole);
   } catch (error) {
-    // Left completely silent on success
+    // Silent on success
   }
 });
-
 
 // ==========================================
 // === 8. REACTION ROLE MODULES ===
@@ -387,6 +422,25 @@ client.on('interactionCreate', async interaction => {
   const { commandName, user } = interaction;
 
   // ----------------------------------------
+  // --- GLOBAL ANTI-SPAM COOLDOWN ENGINE ---
+  // ----------------------------------------
+  const COOLDOWN_AMOUNT = 5000; 
+  if (!cooldowns.has(commandName)) cooldowns.set(commandName, new Collection());
+  const now = Date.now();
+  const timestamps = cooldowns.get(commandName);
+  
+  if (timestamps.has(user.id)) {
+    const expirationTime = timestamps.get(user.id) + COOLDOWN_AMOUNT;
+    if (now < expirationTime) {
+      const timeLeft = ((expirationTime - now) / 1000).toFixed(1);
+      const cooldownEmbed = new EmbedBuilder().setDescription(`Please wait **${timeLeft}s** before using \`/${commandName}\` again.`).setColor('#2b2d31');
+      return interaction.reply({ embeds: [cooldownEmbed], ephemeral: true });
+    }
+  }
+  timestamps.set(user.id, now);
+  setTimeout(() => timestamps.delete(user.id), COOLDOWN_AMOUNT);
+
+  // ----------------------------------------
   // --- [MODERATION]: COMMAND: MOD ---
   // ----------------------------------------
   if (commandName === 'mod') {
@@ -424,7 +478,7 @@ client.on('interactionCreate', async interaction => {
 
     if (subcommand === 'timeout') {
       const duration = interaction.options.getInteger('duration');
-      if (!targetMember.moderatable) return await interaction.editReply({ content: 'You cannot time out users that are higher than you' });
+      if (!targetMember.moderatable) return await interaction.editReply({ content: 'You cannot time out users that are higher than you or if the bot lacks permissions.' });
       try { await targetUser.send(`You have been timed out in **${interaction.guild.name}** for **${duration} minutes**.\n**Reason:** ${reason}\n\n*Appeal by messaging @realsmexyaidan*`); } catch (e) {}
       await targetMember.timeout(duration * 60 * 1000, reason);
       const logEmbed = new EmbedBuilder().setTitle('User Timed Out').setColor('#2b2d31').addFields(
@@ -438,7 +492,7 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (subcommand === 'ban') {
-      if (!targetMember.bannable) return await interaction.editReply({ content: 'You cannot time out users that are higher than you' });
+      if (!targetMember.bannable) return await interaction.editReply({ content: 'You cannot ban users that are higher than you or if the bot lacks permissions.' });
       try { await targetUser.send(`You have been banned from **${interaction.guild.name}**.\n**Reason:** ${reason}\n\n*Appeal by messaging @realsmexyaidan*`); } catch (e) {}
       await targetMember.ban({ reason: reason });
       const logEmbed = new EmbedBuilder().setTitle('User Banned').setColor('#2b2d31').addFields(
@@ -490,11 +544,13 @@ client.on('interactionCreate', async interaction => {
       const targetMessage = await interaction.channel.messages.fetch(messageId);
       if (!targetMessage.content) return await interaction.editReply({ content: 'That message does not contain any text to quote' });
 
+      // 1. Setup Canvas Layout (800x400 landscape)
       const canvas = createCanvas(800, 400);
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+      // 2. Load Color Avatar & Apply Smooth Gradient Mask (Never B&W)
       const avatarUrl = targetMessage.author.displayAvatarURL({ extension: 'png', size: 512 });
       const avatarImage = await loadImage(avatarUrl);
       ctx.drawImage(avatarImage, 0, 0, 400, 400);
@@ -505,87 +561,106 @@ client.on('interactionCreate', async interaction => {
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, 400, 400);
 
-      ctx.fillStyle = '#ffffff';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
+      // 3. Reliable Dynamic Text Layout Function Engine
+      // This system keeps the text layout state and returns the precise measurements we need.
+      function getQuoteLayout(context, textWords, maxW, startFont) {
+        let fontSz = startFont;
+        let spacing = startFont + 10;
+        let sY = 160;
+        let linesArr = [];
+
+        // Loop down sizing steps if wrapping requires compression
+        while (fontSz >= 14) {
+          context.font = `${fontSz}px "CustomArial"`;
+          context.textAlign = 'center';
+          context.textBaseline = 'middle';
+          
+          let testLine = '';
+          linesArr = [];
+
+          for (let n = 0; n < textWords.length; n++) {
+            let testString = testLine + textWords[n] + ' ';
+            if (context.measureText(testString).width > maxW && n > 0) {
+              linesArr.push(testLine.trim());
+              testLine = textWords[n] + ' ';
+            } else {
+              testLine = testString;
+            }
+          }
+          linesArr.push(testLine.trim());
+
+          // Establish clean positioning rules base heights
+          if (fontSz === 32) { spacing = 42; sY = 160; }
+          else if (fontSz === 26) { spacing = 34; sY = 130; }
+          else if (fontSz === 20) { spacing = 26; sY = 100; }
+          else if (fontSz === 14) { spacing = 18; sY = 60; }
+
+          const maxLimit = fontSz === 14 ? 14 : (fontSz === 20 ? 9 : (fontSz === 26 ? 6 : 4));
+          if (linesArr.length <= maxLimit) break; // Fits!
+
+          // Step down sizing configs
+          if (fontSz === 32) fontSz = 26;
+          else if (fontSz === 26) fontSz = 20;
+          else if (fontSz === 20) fontSz = 14;
+          else break;
+        }
+        return { lines: linesArr, fontSize: fontSz, lineSpacing: spacing, startY: sY };
+      }
 
       const words = targetMessage.content.split(' ');
       const maxWidth = 350;
       const xPos = 600; 
 
-      ctx.font = '32px "CustomArial"';
-      let line = '';
-      let lines = [];
-      for (let n = 0; n < words.length; n++) {
-        let testLine = line + words[n] + ' ';
-        let metrics = ctx.measureText(testLine);
-        if (metrics.width > maxWidth && n > 0) {
-          lines.push(line.trim());
-          line = words[n] + ' ';
-        } else { line = testLine; }
-      }
-      lines.push(line.trim());
+      // Execute typographic measurements
+      let layout = getQuoteLayout(ctx, words, maxWidth, 32);
 
-      let fontSize = 32; let lineSpacing = 42; let startY = 160;
-      if (lines.length > 8) { fontSize = 14; lineSpacing = 18; startY = 60; }
-      else if (lines.length > 5) { fontSize = 20; lineSpacing = 26; startY = 100; }
-      else if (lines.length > 3) { fontSize = 26; lineSpacing = 34; startY = 130; }
-
-      ctx.font = `${fontSize}px "CustomArial"`;
-      line = ''; lines = [];
-      for (let n = 0; n < words.length; n++) {
-        let testLine = line + words[n] + ' ';
-        let metrics = ctx.measureText(testLine);
-        if (metrics.width > maxWidth && n > 0) {
-          lines.push(line.trim());
-          line = words[n] + ' ';
-        } else { line = testLine; }
-      }
-      lines.push(line.trim());
-
-      const maxAllowedLines = fontSize === 14 ? 14 : (fontSize === 20 ? 9 : 6);
-      if (lines.length > maxAllowedLines) {
-        lines = lines.slice(0, maxAllowedLines);
-        lines[lines.length - 1] = lines[lines.length - 1].replace(/[\s,.-]+$/, "") + "...";
+      // Handle extreme outliers truncation configuration safeguards
+      if (layout.lines.length > 14) {
+        layout.lines = layout.lines.slice(0, 14);
+        layout.lines[layout.lines.length - 1] = layout.lines[layout.lines.length - 1].replace(/[\s,.-]+$/, "") + "...";
       }
 
-      let yPos = startY;
-      lines.forEach((textLine) => { ctx.fillText(textLine, xPos, yPos); yPos += lineSpacing; });
+      // 4. Render the Quote Text Block
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = `${layout.fontSize}px "CustomArial"`;
 
+      let yPos = layout.startY;
+      layout.lines.forEach((textLine) => { 
+        ctx.fillText(textLine, xPos, yPos); 
+        yPos += layout.lineSpacing; 
+      });
+
+      // 5. Dynamic Author Layout (ANCHORED TO TEXT HEIGHT)
+      // The starting point for the name is now calculated relative to the end of the text.
       yPos += 20; 
-      ctx.fillStyle = '#aaaaaa'; ctx.font = 'italic 22px "CustomArial"'; ctx.textAlign = 'center';
+      ctx.fillStyle = '#aaaaaa'; 
+      ctx.font = 'italic 22px "CustomArial"'; 
+      ctx.textAlign = 'center';
       ctx.fillText(`- ${targetMessage.author.displayName || targetMessage.author.username}`, xPos, yPos);
 
       yPos += 26;
-      ctx.fillStyle = '#666666'; ctx.font = '16px "CustomArial"'; ctx.textAlign = 'center';
+      ctx.fillStyle = '#666666'; 
+      ctx.font = '16px "CustomArial"'; 
+      ctx.textAlign = 'center';
       ctx.fillText(`@${targetMessage.author.username}`, xPos, yPos);
       
+      // 6. BRAND WATERMARK (Anchored to Canvas Bottom-Right)
+      ctx.fillStyle = '#555555'; // Subtle gray watermark
+      ctx.font = 'italic 12px "CustomArial"'; 
+      ctx.textAlign = 'right';
+      ctx.fillText(`Aidan Bot`, 790, 390);
+
+      // 7. Send the finalized asset file
       const buffer = canvas.toBuffer('image/png');
       const attachment = new AttachmentBuilder(buffer, { name: `quote_${targetMessage.id}.png` });
       return await interaction.editReply({ files: [attachment] });
     } catch (error) {
+      console.error(error);
       return await interaction.editReply({ content: 'Could not find that message. Make sure the ID is correct and from this channel' });
     }
   }
-
-  // ----------------------------------------
-  // --- GLOBAL ANTI-SPAM COOLDOWN ENGINE ---
-  // ----------------------------------------
-  const COOLDOWN_AMOUNT = 5000; 
-  if (!cooldowns.has(commandName)) cooldowns.set(commandName, new Collection());
-  const now = Date.now();
-  const timestamps = cooldowns.get(commandName);
-  
-  if (timestamps.has(user.id)) {
-    const expirationTime = timestamps.get(user.id) + COOLDOWN_AMOUNT;
-    if (now < expirationTime) {
-      const timeLeft = ((expirationTime - now) / 1000).toFixed(1);
-      const cooldownEmbed = new EmbedBuilder().setDescription(`Please wait **${timeLeft}s** before using \`/${commandName}\` again.`).setColor('#2b2d31');
-      return interaction.reply({ embeds: [cooldownEmbed], ephemeral: true });
-    }
-  }
-  timestamps.set(user.id, now);
-  setTimeout(() => timestamps.delete(user.id), COOLDOWN_AMOUNT);
 
   // ----------------------------------------
   // --- [STATS]: COMMAND: LEVEL ---
@@ -640,16 +715,6 @@ client.on('interactionCreate', async interaction => {
   }
 
   // ----------------------------------------
-  // --- [FUN]: COMMAND: COINFLIP ---
-  // ----------------------------------------
-  if (commandName === 'coinflip') {
-    const outcomes = ['Heads', 'Tails'];
-    const result = outcomes[Math.floor(Math.random() * outcomes.length)];
-    const coinEmbed = new EmbedBuilder().setDescription(`<@${interaction.user.id}> flipped a coin and got... **${result}**`).setColor('#2b2d31');
-    return await interaction.reply({ embeds: [coinEmbed] });
-  }
-
-  // ----------------------------------------
   // --- [UTILITY]: COMMAND: PING ---
   // ----------------------------------------
   if (commandName === 'ping') {
@@ -691,4 +756,3 @@ client.on('interactionCreate', async interaction => {
 });
 
 client.login(TOKEN);
-// © 2026 AIDAN Industries. All rights reserved.
