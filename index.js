@@ -758,17 +758,17 @@ client.on('interactionCreate', async interaction => {
     return await interaction.reply({ embeds: [lbEmbed], components: [row] });
   }
   
-  // ----------------------------------------
+ // ----------------------------------------
   // --- [ECONOMY]: COMMAND: DAILY ---
   // ----------------------------------------
   if (commandName === 'daily') {
-    // Making this ephemeral makes the reply private to the user
     await interaction.deferReply({ ephemeral: true });
+    
+    // If guildId was missing above, this helper function would stall forever
     const ecoData = await getEconomyData(user.id, guildId);
     
-    // Generates a random payout between 1 and 100 Aidan-Bucks
     const DAILY_AMOUNT = Math.floor(Math.random() * 100) + 1;
-    const cooldownTime = 24 * 60 * 60 * 1000; // 24 hours
+    const cooldownTime = 24 * 60 * 60 * 1000; 
 
     if (ecoData.last_daily) {
       const lastDailyTime = new Date(ecoData.last_daily).getTime();
@@ -788,6 +788,7 @@ client.on('interactionCreate', async interaction => {
     const dailySuccessEmbed = new EmbedBuilder()
       .setDescription(`**+${DAILY_AMOUNT}** added to your account! Your new balance is **${Number(ecoData.balance) + DAILY_AMOUNT}**.`)
       .setColor('#2b2d31');
+      
     return await interaction.editReply({ embeds: [dailySuccessEmbed] });
   }
 
