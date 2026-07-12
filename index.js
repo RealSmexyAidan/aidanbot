@@ -574,7 +574,7 @@ client.on('interactionCreate', async interaction => {
   // ----------------------------------------
   if (commandName === 'quote') {
     const messageId = interaction.options.getString('message_id');
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply();
     try {
       const targetMessage = await interaction.channel.messages.fetch(messageId);
       if (!targetMessage.content) return await interaction.editReply({ content: 'That message does not contain any text to quote.' });
