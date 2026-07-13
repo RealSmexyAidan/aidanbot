@@ -88,23 +88,6 @@ async function initDb() {
     )
   `);
 
-  // Verify/Create Economy Table with a composite key (user_id + guild_id)
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS economy (
-        user_id VARCHAR(255) NOT NULL,
-        guild_id VARCHAR(255) NOT NULL,
-        balance BIGINT DEFAULT 0,
-        last_daily TIMESTAMP WITH TIME ZONE DEFAULT NULL,
-        last_steal TIMESTAMP WITH TIME ZONE DEFAULT NULL,
-        PRIMARY KEY (user_id, guild_id)
-    );
-  `);
-  
-  // Safeguards for tables that already exist
-  await pool.query(`
-    ALTER TABLE economy ADD COLUMN IF NOT EXISTS last_steal TIMESTAMP WITH TIME ZONE DEFAULT NULL;
-  `);
-
   console.log('Database tables verified and ready.');
 }
 
@@ -117,15 +100,6 @@ async function getUserData(userId) {
   return res.rows[0];
 }
 
-// Helper to grab or generate wallet profiles locked to specific servers
-async function getEconomyData(userId, guildId) {
-  const res = await pool.query('SELECT * FROM economy WHERE user_id = $1 AND guild_id = $2', [userId, guildId]);
-  if (res.rows.length === 0) {
-    const insertRes = await pool.query('INSERT INTO economy (user_id, guild_id, balance) VALUES ($1, $2, 0) RETURNING *', [userId, guildId]);
-    return insertRes.rows[0];
-  }
-  return res.rows[0];
-}
 
 // ==========================================
 // === 3. CLIENT INITIALIZATION & PRESENCE ===
@@ -410,53 +384,11 @@ client.on('messageReactionRemove', async (reaction, user) => {
 // === 9. MAIN INTERACTION CREATE HANDLER ===
 // ==========================================
 client.on('interactionCreate', async interaction => {
-  // 1. If you have custom button handler logic, keep it at the top
-  if (interaction.isButton()) {
-    // ... your button handling code (if any) ...
-    return;
-  }
   if (!interaction.isChatInputCommand()) return;
 
   const { commandName, user, guildId } = interaction;
-  const now = Date.now(); 
-
-  // --- BUTTON ACTIONS: LEADERBOARD ---
-  // ----------------------------------------
-  if (interaction.isButton()) {
-    if (interaction.customId === 'lb_levels' || interaction.customId === 'lb_daps') {
-      const medals = ['🥇', '🥈', '🥉'];
-      let description = '';
-      let title = '';
-
-      if (interaction.customId === 'lb_levels') {
-        title = 'Aidansville Level Leaderboard';
-        const res = await pool.query('SELECT * FROM users ORDER BY level DESC, xp DESC LIMIT 10');
-        res.rows.forEach((player, idx) => {
-          const prefix = idx < 3 ? `${medals[idx]} ` : `**${idx + 1}** `;
-          const nextLvlXp = (player.level * 50) + 50;
-          description += `${prefix}<@${player.user_id}> • **Level ${player.level}** • ${player.xp}/${nextLvlXp} XP\n`;
-        });
-      } else {
-        title = 'Aidansville Dap Leaderboard';
-        const res = await pool.query('SELECT * FROM users ORDER BY daps DESC LIMIT 10');
-        res.rows.forEach((player, idx) => {
-          const prefix = idx < 3 ? `${medals[idx]} ` : `**${idx + 1}** `;
-          description += `${prefix}<@${player.user_id}> • **${player.daps} daps** given\n`;
-        });
-      }
-
-      const updatedEmbed = new EmbedBuilder()
-        .setTitle(title)
-        .setDescription(description || 'No data recorded yet!')
-        .setColor('#2b2d31')
-        .setThumbnail(interaction.guild.iconURL());
-
-      return await interaction.update({ embeds: [updatedEmbed] });
-    }
-  }
-
-  if (!interaction.isChatInputCommand()) return;
-
+  const now = Date.now();
+  
   // ----------------------------------------
   // --- GLOBAL ANTI-SPAM COOLDOWN ENGINE ---
   // ----------------------------------------
@@ -721,32 +653,28 @@ client.on('interactionCreate', async interaction => {
     return await interaction.reply({ embeds: [lvlEmbed] });
   }
 
-  // ----------------------------------------
-  // --- [STATS]: COMMAND: LEADERBOARD ---
-  // ----------------------------------------
-  if (commandName === 'leaderboard') {
-    const res = await pool.query('SELECT * FROM users ORDER BY level DESC, xp DESC LIMIT 10');
-    let description = '';
-    const medals = ['🥇', '🥈', '🥉'];
+// ----------------------------------------
+// --- [STATS]: COMMAND: LEADERBOARD ---
+// ----------------------------------------
+if (commandName === 'leaderboard') {
+  const res = await pool.query('SELECT * FROM users ORDER BY level DESC, xp DESC LIMIT 10');
+  let description = '';
+  const medals = ['🥇', '🥈', '🥉'];
 
-    res.rows.forEach((player, idx) => {
-      const prefix = idx < 3 ? `${medals[idx]} ` : `**${idx + 1}** `;
-      const nextLvlXp = (player.level * 50) + 50;
-      description += `${prefix}<@${player.user_id}> • **Level ${player.level}** • ${player.xp}/${nextLvlXp} XP\n`;
-    });
+  res.rows.forEach((player, idx) => {
+    const prefix = idx < 3 ? `${medals[idx]} ` : `**${idx + 1}** `;
+    const nextLvlXp = (player.level * 50) + 50;
+    description += `${prefix}<@${player.user_id}> • **Level ${player.level}** • ${player.xp}/${nextLvlXp} XP\n`;
+  });
 
-    const lbEmbed = new EmbedBuilder()
-      .setTitle('Aidansville Level Leaderboard')
-      .setDescription(description || 'No one has earned XP yet!')
-      .setColor('#2b2d31')
-      .setThumbnail(interaction.guild.iconURL());
+  const lbEmbed = new EmbedBuilder()
+    .setTitle('Aidansville Level Leaderboard')
+    .setDescription(description || 'No one has earned XP yet!')
+    .setColor('#2b2d31')
+    .setThumbnail(interaction.guild.iconURL());
 
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('lb_levels').setLabel('Level Leaderboard').setStyle(ButtonStyle.Primary),
-    );
-
-    return await interaction.reply({ embeds: [lbEmbed], components: [row] });
-  }
+  return await interaction.reply({ embeds: [lbEmbed] });
+}
   
   // ----------------------------------------
   // --- [UTILITY]: COMMAND: PING ---
