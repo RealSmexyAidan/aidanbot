@@ -130,78 +130,19 @@ const statuses = ["Made by Aidan", "Watching Aidansville"];
 // ==========================================
 const commands = [
   { name: 'ping', description: 'Checks the latency of Aidan Bot' },
-  {
-    name: 'dapup',
-    description: 'Dap up a friend',
-    options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'The user you want to dap up', required: true }]
-  },
-  {
-    name: 'say',
-    description: 'Make Aidan Bot say something',
-    options: [{ name: 'message', type: ApplicationCommandOptionType.String, description: 'The text you want Aidan Bot to repeat', required: true }]
-  },
   { name: 'leaderboard', description: 'Display the Aidansville level leaderboard' },
-  {
-    name: 'level',
-    description: 'Check your current level and progress',
-    options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'Check another citizen\'s level', required: false }]
-  },
-  { 
-    name: 'purge',
-    description: 'Delete a specified number of messages',
-    options: [
-      {
-        name: 'amount',
-        type: ApplicationCommandOptionType.Integer,
-        description: 'The number of messages to delete (1-100)',
-        required: true
-      }
-    ]
-  },
-  {
-    name: 'quote',
-    description: 'Quote a message using its message ID',
-    options: [
-      {
-        name: 'message_id',
-        type: ApplicationCommandOptionType.String,
-        description: 'The ID of the message you want to quote',
-        required: true
-      }
-    ]
-  },
+  { name: 'say', description: 'Make Aidan Bot say something', options: [{ name: 'message', type: ApplicationCommandOptionType.String, description: 'The text to repeat', required: true }] },
+  { name: 'dapup', description: 'Dap up a friend', options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'The user to dap', required: true }] },
+  { name: 'level', description: 'Check your level', options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'Check another citizen\'s level', required: false }] },
+  { name: 'purge', description: 'Delete messages', options: [{ name: 'amount', type: ApplicationCommandOptionType.Integer, description: 'Amount (1-100)', required: true }] },
+  { name: 'quote', description: 'Quote a message', options: [{ name: 'message_id', type: ApplicationCommandOptionType.String, description: 'The message ID', required: true }] },
   {
     name: 'mod',
     description: 'Staff moderation tools',
     options: [
-      {
-        name: 'warn',
-        description: 'Warn a citizen',
-        type: ApplicationCommandOptionType.Subcommand,
-        options: [
-          { name: 'user', type: ApplicationCommandOptionType.User, description: 'The user to warn', required: true },
-          { name: 'reason', type: ApplicationCommandOptionType.String, description: 'Reason for the warning', required: true }
-        ]
-      },
-      {
-        name: 'timeout',
-        description: 'Timeout a citizen',
-        type: ApplicationCommandOptionType.Subcommand,
-        options: [
-          { name: 'user', type: ApplicationCommandOptionType.User, description: 'The user to timeout', required: true },
-          { name: 'duration', type: ApplicationCommandOptionType.Integer, description: 'Duration in minutes', required: true },
-          { name: 'reason', type: ApplicationCommandOptionType.String, description: 'Reason for the timeout', required: true }
-        ]
-      },
-      {
-        name: 'ban',
-        description: 'Ban a citizen',
-        type: ApplicationCommandOptionType.Subcommand,
-        options: [
-          { name: 'user', type: ApplicationCommandOptionType.User, description: 'The user to ban', required: true },
-          { name: 'reason', type: ApplicationCommandOptionType.String, description: 'Reason for the ban', required: true }
-        ]
-      }
+      { name: 'warn', description: 'Warn a citizen', type: ApplicationCommandOptionType.Subcommand, options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'User', required: true }, { name: 'reason', type: ApplicationCommandOptionType.String, description: 'Reason', required: true }] },
+      { name: 'timeout', description: 'Timeout a citizen', type: ApplicationCommandOptionType.Subcommand, options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'User', required: true }, { name: 'duration', type: ApplicationCommandOptionType.Integer, description: 'Minutes', required: true }, { name: 'reason', type: ApplicationCommandOptionType.String, description: 'Reason', required: true }] },
+      { name: 'ban', description: 'Ban a citizen', type: ApplicationCommandOptionType.Subcommand, options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'User', required: true }, { name: 'reason', type: ApplicationCommandOptionType.String, description: 'Reason', required: true }] }
     ]
   }
 ];
@@ -427,7 +368,7 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (targetUser.id === interaction.user.id) {
-      return await interaction.reply({ content: 'You cannot moderate yourself silly', ephemeral: true });
+      return await interaction.reply({ content: 'You cannot moderate yourself.', ephemeral: true });
     }
 
     await interaction.deferReply({ ephemeral: true });
@@ -477,7 +418,7 @@ client.on('interactionCreate', async interaction => {
   // ----------------------------------------
   if (commandName === 'purge') {
     if (!interaction.member.permissions.has('ManageMessages')) {
-      return await interaction.reply({ content: 'You do not have permission to use the purge command', ephemeral: true });
+      return await interaction.reply({ content: 'You do not have permission to use the purge command.', ephemeral: true });
     }
     const amount = interaction.options.getInteger('amount');
     const LOG_CHANNEL_ID = '1396953023426727998'; 
