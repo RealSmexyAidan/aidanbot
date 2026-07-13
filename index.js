@@ -1,27 +1,26 @@
-// ============================================================================== 
-//
-//                                     =-::-====-:.-=            
-//                                    ::*@@@@@@@@@#+-::-         
-//                                  =:=@@%%@@@@%#@@@@@=::        
-//                                  :-@@@=+@@@%=-*@@@@@+:-       
-//                                 %.@@@@@@-=+=@@@@@@@@@-:       
-//                                  .+@@@@@@##@@@@@@@%+%+--      
-//                                  ==::+#@@@@@@@@#+-:#@+--     -
-//                                    -::--:::.-*%@@@@@+--   -.-
-//                  @@@               @@@@@@@    -:=@@@@@@*::   +.=@
-//                @@##%@         @%*++++=====+**@@#-+@@@@@#-=@%:-@@
-//     @@@@@@@@@@@%=.:+%%#####%@=...:-:--:......:--*@@@@#--=+-...:
-//  @@#*=......:--:............:..::........  ................ ..:
-//   @@%-:::-=**=:.........................   .=@@=-+**+-.......:
-//               @@@@@@@@@#+=:--=+%@......=:.. ..+@-:*@@@@@%=....*
-//                          @@@@@  @-.:-@%:.......+@+:*@@*=*#-.:+%
-//                                 @:::-@@@@@-...:*@%:.=@@@%=.....
-//                               @@=:::+@   @@@%=.-%@ -::---:..::.
-//                               @@%@@@@      @@@@@       ::%@=:@
-//                                                             .=@@=+@
-//                                                            -.*@@-*@
-//                                                            -.-==:=@
-//                                                              --=-:
+//                                                                      
+//                                               +####* //                                                       
+//                                        @. @@@@@@@@@@@@#. :* //                                                 
+//                                      + @@@@  @@@@@  +@@@@@@.:         
+//                                     @ #@@@@@@#*@*@@@@@@@@@@@ #        
+//                                     @ #@@@@@@@  .@@@@@@@@@@@-         
+//                                      # .@@@@@@@@@@@@@@@@@ #@%         
+//                                        @:   -*@@@@@%=  .+@@@%       * //                                             
+//                    @@                @@@@@@@@@     . @@@@@@@@ :   = @@
+//                  @@.@@         @@@@*=:::..  :-+@@@@@.=@@@@@@@ % @+ @@@
+//      @@@@@@@@@ @@-  +@@@@@@@@@@@.    =====-        :=#@@@@@@- ##=    .
+// @@@@@:       +%#  :#              -:                                 .
+// @@@@@:      ...                                   :@@@   .:          .
+//     @@@@@@@@@@@@@@@@%####.        -%              .@@  @@@@@@@#.     :
+//                         @@@@@@@@@@@@* # --       @@+ @@@@@=    *@@@
+//                                    @@   @@@@@@      @@@: #@@@@@@@    .
+//                                   @@:   %@   @@*=   @@  :  @@@@@- ++  
+//                                  @@. ..=@@      @@# -@@   %=-.       .
+//                                   @@@@@@          @@@         - @@@:-@
+//                                                               - @@@ @@
+//                                                               .:@@@ @@
+//                                                              @ .@@@ @@
+//                                                               @*-.:=
 //                                                                    
 //  █████╗ ██╗██████╗  █████╗ ███╗   ██╗    ██████╗  ██████╗ ████████╗
 // ██╔══██╗██║██╔══██╗██╔══██╗████╗  ██║    ██╔══██╗██╔═══██╗╚══██╔══╝
@@ -34,63 +33,30 @@
 //
 // ==============================================================================
 
-
-// ==========================================
-// === 1. DEPENDENCIES & CONFIGURATION ===
-// ==========================================
 const { createCanvas, loadImage, GlobalFonts } = require('@napi-rs/canvas');
-const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ApplicationCommandOptionType, Collection, ActivityType, Partials, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ApplicationCommandOptionType, Collection, ActivityType, Partials, AttachmentBuilder } = require('discord.js');
 const express = require('express');
 const { Pool } = require('pg');
 const path = require('path');
 
-// Register the exact font filename
 GlobalFonts.registerFromPath(path.join(__dirname, 'ARIAL.TTF'), 'CustomArial');
 
-// Keep-Alive Web Server for Railway
+// Web Server
 const app = express();
 const PORT = process.env.PORT || 3000;
 app.get('/', (req, res) => res.send('Aidan Bot Status, Commands, Levels, and Stats are Online!'));
-app.listen(PORT, () => console.log(`Web server running on port ${PORT}`));
+app.listen(PORT);
 
-// Read Tokens / Credentials
-let TOKEN = process.env.TOKEN;
-let CLIENT_ID = process.env.CLIENT_ID;
-let DATABASE_URL = process.env.DATABASE_URL;
-
+let TOKEN = process.env.TOKEN, CLIENT_ID = process.env.CLIENT_ID, DATABASE_URL = process.env.DATABASE_URL;
 if (!TOKEN || !CLIENT_ID || !DATABASE_URL) {
-  try {
-    const config = require('./config.json');
-    if (!TOKEN) TOKEN = config.TOKEN;
-    if (!CLIENT_ID) CLIENT_ID = config.CLIENT_ID;
-    if (!DATABASE_URL) DATABASE_URL = config.DATABASE_URL;
-  } catch (e) {
-    console.log("ℹ️ Running via environment variables.");
-  }
+  try { const config = require('./config.json'); TOKEN ||= config.TOKEN; CLIENT_ID ||= config.CLIENT_ID; DATABASE_URL ||= config.DATABASE_URL; } catch { console.log("ℹ️ Running via environment variables."); }
 }
 
-// ==========================================
-// === 2. DATABASE UTILITIES ===
-// ==========================================
-const pool = new Pool({
-  connectionString: DATABASE_URL,
-  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
-});
-
+// Database Utilities
+const pool = new Pool({ connectionString: DATABASE_URL, ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false });
 async function initDb() {
-  // Verify/Create Users Table
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS users (
-      user_id VARCHAR(20) PRIMARY KEY,
-      xp INTEGER DEFAULT 0,
-      level INTEGER DEFAULT 0,
-      daps INTEGER DEFAULT 0
-    )
-  `);
-
-  console.log('Database tables verified and ready.');
+  await pool.query('CREATE TABLE IF NOT EXISTS users (user_id VARCHAR(20) PRIMARY KEY, xp INTEGER DEFAULT 0, level INTEGER DEFAULT 0, daps INTEGER DEFAULT 0)');
 }
-
 async function getUserData(userId) {
   const res = await pool.query('SELECT * FROM users WHERE user_id = $1', [userId]);
   if (res.rows.length === 0) {
@@ -100,34 +66,14 @@ async function getUserData(userId) {
   return res.rows[0];
 }
 
-
-// ==========================================
-// === 3. CLIENT INITIALIZATION & PRESENCE ===
-// ==========================================
+// Client Configuration
 const client = new Client({ 
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMessageReactions,
-    GatewayIntentBits.GuildVoiceStates,
-  ],
-  partials: [
-    Partials.Message, 
-    Partials.Channel, 
-    Partials.Reaction 
-  ]
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.GuildVoiceStates],
+  partials: [Partials.Message, Partials.Channel, Partials.Reaction]
 });
+const cooldowns = new Collection(), xpCooldowns = new Set(), statuses = ["Made by Aidan", "Watching Aidansville"];
 
-const cooldowns = new Collection();
-const xpCooldowns = new Set();
-const statuses = ["Made by Aidan", "Watching Aidansville"];
-
-
-// ==========================================
-// === 4. GLOBAL SLASH COMMANDS ARRAY ===
-// ==========================================
+// Application Commands Specification Map
 const commands = [
   { name: 'ping', description: 'Checks the latency of Aidan Bot' },
   { name: 'leaderboard', description: 'Display the Aidansville level leaderboard' },
@@ -137,8 +83,7 @@ const commands = [
   { name: 'purge', description: 'Delete messages', options: [{ name: 'amount', type: ApplicationCommandOptionType.Integer, description: 'Amount (1-100)', required: true }] },
   { name: 'quote', description: 'Quote a message', options: [{ name: 'message_id', type: ApplicationCommandOptionType.String, description: 'The message ID', required: true }] },
   {
-    name: 'mod',
-    description: 'Staff moderation tools',
+    name: 'mod', description: 'Staff moderation tools',
     options: [
       { name: 'warn', description: 'Warn a citizen', type: ApplicationCommandOptionType.Subcommand, options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'User', required: true }, { name: 'reason', type: ApplicationCommandOptionType.String, description: 'Reason', required: true }] },
       { name: 'timeout', description: 'Timeout a citizen', type: ApplicationCommandOptionType.Subcommand, options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'User', required: true }, { name: 'duration', type: ApplicationCommandOptionType.Integer, description: 'Minutes', required: true }, { name: 'reason', type: ApplicationCommandOptionType.String, description: 'Reason', required: true }] },
@@ -147,515 +92,188 @@ const commands = [
   }
 ];
 
-
-// ==========================================
-// === 5. READY EVENT HANDLER ===
-// ==========================================
+// Ready Sequence
 client.once('ready', async () => {
   console.log(`🤖 Logged in as ${client.user.tag}!`);
   await initDb(); 
-  
-  // Rotating Status Sequence
-  let statusIndex = 0;
-  client.user.setPresence({
-      activities: [{ name: statuses[statusIndex], type: ActivityType.Custom }],
-      status: 'online',
-  });
-  setInterval(() => {
-      statusIndex = (statusIndex + 1) % statuses.length;
-      client.user.setPresence({ activities: [{ name: statuses[statusIndex], type: ActivityType.Custom }], status: 'online' });
-  }, 15000); 
+  let sIdx = 0;
+  setInterval(() => { client.user.setPresence({ activities: [{ name: statuses[sIdx], type: ActivityType.Custom }], status: 'online' }); sIdx = (sIdx + 1) % statuses.length; }, 15000); 
 
-  
-
-  // Server Stats Counter Tracker
-  const STATS_CHANNEL_ID = '1444216285964800093'; 
   const updateStats = async () => {
     try {
-      const channel = await client.channels.fetch(STATS_CHANNEL_ID);
-      if (channel && channel.guild) {
-        const totalMembers = channel.guild.memberCount;
-        await channel.setName(`👥│ ${totalMembers} citizens`);
-        console.log(`Updated server stats counter to: ${totalMembers} citizens`);
-      }
-    } catch (error) {
-      console.error("Failed to update stats channel name:", error);
-    }
+      const chan = await client.channels.fetch('1444216285964800093');
+      if (chan?.guild) await chan.setName(`👥│ ${chan.guild.memberCount} citizens`);
+    } catch (e) { console.error(e); }
   };
-  updateStats();
-  setInterval(updateStats, 720000);
+  updateStats(); setInterval(updateStats, 720000);
 
-  // Register Global Commands with Discord Engine
-  const rest = new REST({ version: '10' }).setToken(TOKEN);
-  try {
-    console.log('Started refreshing application (/) commands.');
-    await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
-    console.log('Successfully reloaded application (/) commands.');
-  } catch (error) {
-    console.error(error);
-  }
+  try { await new REST({ version: '10' }).setToken(TOKEN).put(Routes.applicationCommands(CLIENT_ID), { body: commands }); } catch (e) { console.error(e); }
 });
 
-
-// ==========================================
-// === 6. CHAT XP & LEVEL TRACKING ===
-// ==========================================
-client.on('messageCreate', async message => {
-  if (message.author.bot || !message.guild) return;
-  if (xpCooldowns.has(message.author.id)) return;
-
-  const userId = message.author.id;
-  const userData = await getUserData(userId);
-
+// Chat Engine: Leveling Modules
+client.on('messageCreate', async msg => {
+  if (msg.author.bot || !msg.guild || xpCooldowns.has(msg.author.id)) return;
+  const userData = await getUserData(msg.author.id);
   const xpGained = Math.floor(Math.random() * 11) + 15;
-  let newXp = userData.xp + xpGained;
-  let newLevel = userData.level;
-  const xpNeeded = (newLevel * 50) + 50;
+  let nXp = userData.xp + xpGained, nLvl = userData.level, xpNeeded = (nLvl * 50) + 50;
 
-  if (newXp >= xpNeeded) {
-    newXp -= xpNeeded;
-    newLevel += 1;
-    
-    const LEVEL_UP_CHANNEL_ID = '1519015856837890088'; 
-    const levelChannel = message.guild.channels.cache.get(LEVEL_UP_CHANNEL_ID);
-    const lvlUpEmbed = new EmbedBuilder()
-      .setDescription(`<@${userId}> is now **Level ${newLevel}**`)
-      .setColor('#2b2d31');
+  if (nXp >= xpNeeded) {
+    nXp -= xpNeeded; nLvl++;
+    const embed = new EmbedBuilder().setDescription(`<@${msg.author.id}> is now **Level ${nLvl}**`).setColor('#2b2d31');
+    const chan = msg.guild.channels.cache.get('1519015856837890088');
+    chan ? chan.send({ embeds: [embed] }) : msg.channel.send({ embeds: [embed] });
 
-    if (levelChannel) {
-      levelChannel.send({ embeds: [lvlUpEmbed] });
-    } else {
-      message.channel.send({ embeds: [lvlUpEmbed] });
-    }
-
-// Milestones Role Unlocks
     try {
-      const member = await message.guild.members.fetch(userId);
-      if (newLevel >= 50) {
-        const role = message.guild.roles.cache.get('1505615177972846682'); 
-        if (role && !member.roles.cache.has(role.id)) await member.roles.add(role);
-      } else if (newLevel >= 25) {
-        const role = message.guild.roles.cache.get('1505613327873073276'); 
-        if (role && !member.roles.cache.has(role.id)) await member.roles.add(role);
-      } else if (newLevel >= 10) {
-        const role = message.guild.roles.cache.get('1505614729651949771'); 
-        if (role && !member.roles.cache.has(role.id)) await member.roles.add(role);
-      } if (newLevel >= 1) {
-        const role = message.guild.roles.cache.get('1520015021894144130'); 
-        if (role && !member.roles.cache.has(role.id)) await member.roles.add(role);
+      const member = await msg.guild.members.fetch(msg.author.id);
+      const milestones = [{ lvl: 50, id: '1505615177972846682' }, { lvl: 25, id: '1505613327873073276' }, { lvl: 10, id: '1505614729651949771' }, { lvl: 1, id: '1520015021894144130' }];
+      for (const m of milestones) {
+        if (nLvl >= m.lvl) {
+          const r = msg.guild.roles.cache.get(m.id);
+          if (r && !member.roles.cache.has(r.id)) { await member.roles.add(r); break; }
+        }
       }
-    } catch (roleError) {
-      console.error("Failed to assign role:", roleError);
-    }
+    } catch (e) { console.error(e); }
   }
-
-  await pool.query('UPDATE users SET xp = $1, level = $2 WHERE user_id = $3', [newXp, newLevel, userId]);
-  xpCooldowns.add(userId);
-  setTimeout(() => xpCooldowns.delete(userId), 5000);
-}); 
-
-// ==========================================
-// === 7. WELCOMER SYSTEM MODULE ===
-// ==========================================
-client.on('guildMemberAdd', async member => {
-  const WELCOME_CHANNEL_ID = '1397011380162531348';
-  const channel = member.guild.channels.cache.get(WELCOME_CHANNEL_ID);
-  if (channel) {
-    const welcomeEmbed = new EmbedBuilder()
-      .setDescription(`<@${member.id}> has crossed the Aidan wall. Welcome to Aidansville!`)
-      .setColor('#2b2d31');
-    channel.send({ embeds: [welcomeEmbed] });
-  }
-
-  // Automatically assign the default member role on join
-  try {
-    const defaultRole = member.guild.roles.cache.get('1397383481465507861'); 
-    if (defaultRole) await member.roles.add(defaultRole);
-  } catch (error) {
-    // Silent on success
-  }
+  await pool.query('UPDATE users SET xp = $1, level = $2 WHERE user_id = $3', [nXp, nLvl, msg.author.id]);
+  xpCooldowns.add(msg.author.id); setTimeout(() => xpCooldowns.delete(msg.author.id), 5000);
 });
 
-// ==========================================
-// === 8. REACTION ROLE MODULES ===
-// ==========================================
-const REACTION_MESSAGE_ID = '1500691229493694546'; 
-const REACTION_CHANNEL_ID = '1455482928103686410'; 
-
-const reactionRoles = {
-  '📢': '1469584337895686237', 
-  '🤖': '1469584568578343045',
-  '\u{1F4AC}': '1456407903702351925'
-};
-
-// Add Reaction Role
-client.on('messageReactionAdd', async (reaction, user) => {
-  if (user.bot || reaction.message.id !== REACTION_MESSAGE_ID) return;
-  if (reaction.partial) {
-    try { await reaction.fetch(); } catch (error) { return console.error(error); }
-  }
-  const roleId = reactionRoles[reaction.emoji.name];
-  if (!roleId) return;
-  try {
-    const guild = reaction.message.guild;
-    const member = await guild.members.fetch(user.id);
-    const role = guild.roles.cache.get(roleId);
-    if (role && !member.roles.cache.has(role.id)) await member.roles.add(role);
-  } catch (error) { console.error(error); }
+// Welcomer System
+client.on('guildMemberAdd', async m => {
+  const chan = m.guild.channels.cache.get('1397011380162531348');
+  if (chan) chan.send({ embeds: [new EmbedBuilder().setDescription(`<@${m.id}> has crossed the Aidan wall. Welcome to Aidansville!`).setColor('#2b2d31')] });
+  try { const r = m.guild.roles.cache.get('1397383481465507861'); if (r) await m.roles.add(r); } catch {}
 });
 
-// Remove Reaction Role
-client.on('messageReactionRemove', async (reaction, user) => {
-  if (user.bot || reaction.message.id !== REACTION_MESSAGE_ID) return;
-  if (reaction.partial) {
-    try { await reaction.fetch(); } catch (error) { return console.error(error); }
-  }
-  const roleId = reactionRoles[reaction.emoji.name];
-  if (!roleId) return;
+// Reaction Roles Configuration & Event Flow
+const REACTION_MESSAGE_ID = '1500691229493694546', reactionRoles = { '📢': '1469584337895686237', '🤖': '1469584568578343045', '\u{1F4AC}': '1456407903702351925' };
+async function handleReaction(react, u, add) {
+  if (u.bot || react.message.id !== REACTION_MESSAGE_ID) return;
+  if (react.partial) { try { await react.fetch(); } catch { return; } }
+  const rId = reactionRoles[react.emoji.name]; if (!rId) return;
   try {
-    const guild = reaction.message.guild;
-    const member = await guild.members.fetch(user.id);
-    const role = guild.roles.cache.get(roleId);
-    if (role && member.roles.cache.has(role.id)) await member.roles.remove(role);
-  } catch (error) { console.error(error); }
-});
+    const member = await react.message.guild.members.fetch(u.id), role = react.message.guild.roles.cache.get(rId);
+    if (role) add ? await member.roles.add(role) : await member.roles.remove(role);
+  } catch (e) { console.error(e); }
+}
+client.on('messageReactionAdd', (r, u) => handleReaction(r, u, true));
+client.on('messageReactionRemove', (r, u) => handleReaction(r, u, false));
 
-
-// ==========================================
-// === 9. MAIN INTERACTION CREATE HANDLER ===
-// ==========================================
+// Core Multi-Interaction System Router Module
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
-
-  const { commandName, user, guildId } = interaction;
-  const now = Date.now();
+  const { commandName, user } = interaction, now = Date.now(), COOLDOWN_AMOUNT = 5000;
   
-  // ----------------------------------------
-  // --- GLOBAL ANTI-SPAM COOLDOWN ENGINE ---
-  // ----------------------------------------
-  const COOLDOWN_AMOUNT = 5000; 
   if (!cooldowns.has(commandName)) cooldowns.set(commandName, new Collection());
   const timestamps = cooldowns.get(commandName);
-  
   if (timestamps.has(user.id)) {
-    const expirationTime = timestamps.get(user.id) + COOLDOWN_AMOUNT;
-    if (now < expirationTime) {
-      const timeLeft = ((expirationTime - now) / 1000).toFixed(1);
-      const cooldownEmbed = new EmbedBuilder().setDescription(`Please wait **${timeLeft}s** before using \`/${commandName}\` again.`).setColor('#2b2d31');
-      return interaction.reply({ embeds: [cooldownEmbed], ephemeral: true });
-    }
+    const expiry = timestamps.get(user.id) + COOLDOWN_AMOUNT;
+    if (now < expiry) return interaction.reply({ embeds: [new EmbedBuilder().setDescription(`Please wait **${((expiry - now) / 1000).toFixed(1)}s** before tracking \`/${commandName}\` again.`).setColor('#2b2d31')], ephemeral: true });
   }
-  timestamps.set(user.id, now);
-  setTimeout(() => timestamps.delete(user.id), COOLDOWN_AMOUNT);
+  timestamps.set(user.id, now); setTimeout(() => timestamps.delete(user.id), COOLDOWN_AMOUNT);
 
-  // ----------------------------------------
-  // --- [MODERATION]: COMMAND: MOD ---
-  // ----------------------------------------
+  // Mod Only Commands
   if (commandName === 'mod') {
-    if (!interaction.member.permissions.has('ModerateMembers')) {
-      return await interaction.reply({ content: 'You do not have permission to use moderation commands', ephemeral: true });
-    }
-
-    const subcommand = interaction.options.getSubcommand();
-    const targetUser = interaction.options.getUser('user');
-    const reason = interaction.options.getString('reason');
-    const LOG_CHANNEL_ID = '1396953023426727998'; 
-    const logChannel = interaction.guild.channels.cache.get(LOG_CHANNEL_ID);
-
-    let targetMember;
-    try { targetMember = await interaction.guild.members.fetch(targetUser.id); } catch (err) {
-      return await interaction.reply({ content: 'Could not find that user in this server.', ephemeral: true });
-    }
-
-    if (targetUser.id === interaction.user.id) {
-      return await interaction.reply({ content: 'You cannot moderate yourself.', ephemeral: true });
-    }
+    if (!interaction.member.permissions.has('ModerateMembers')) return interaction.reply({ content: 'Lacking standard permission thresholds.', ephemeral: true });
+    const sub = interaction.options.getSubcommand(), target = interaction.options.getUser('user'), reason = interaction.options.getString('reason');
+    let member; try { member = await interaction.guild.members.fetch(target.id); } catch { return interaction.reply({ content: 'Invalid target.', ephemeral: true }); }
+    if (target.id === interaction.user.id) return interaction.reply({ content: 'You cannot moderate yourself.', ephemeral: true });
 
     await interaction.deferReply({ ephemeral: true });
+    let title = '';
+    if (sub === 'warn') { title = 'User Warned'; try { await target.send(`Warned in **${interaction.guild.name}**\nReason: ${reason}`); } catch {} }
+    if (sub === 'timeout') { title = 'User Timed Out'; const d = interaction.options.getInteger('duration'); if (!member.moderatable) return interaction.editReply('Unmoderatable user.'); try { await target.send(`Timed out for ${d}m.\nReason: ${reason}`); } catch {} await member.timeout(d * 60 * 1000, reason); }
+    if (sub === 'ban') { title = 'User Banned'; if (!member.bannable) return interaction.editReply('Unbannable user.'); try { await target.send(`Banned.\nReason: ${reason}`); } catch {} await member.ban({ reason }); }
 
-    if (subcommand === 'warn') {
-      try { await targetUser.send(`You have been warned in **${interaction.guild.name}**\n**Reason:** ${reason}`); } catch (e) {}
-      const logEmbed = new EmbedBuilder().setTitle('User Warned').setColor('#2b2d31').addFields(
-        { name: 'Target', value: `<@${targetUser.id}>\nTag: \`${targetUser.tag}\`\nID: \`${targetUser.id}\``, inline: true },
-        { name: 'Moderator', value: `<@${interaction.user.id}>`, inline: true },
-        { name: 'Reason', value: reason }
-      );
-      if (logChannel) logChannel.send({ embeds: [logEmbed] });
-      return await interaction.editReply({ content: `Successfully warned <@${targetUser.id}>.` });
-    }
-
-    if (subcommand === 'timeout') {
-      const duration = interaction.options.getInteger('duration');
-      if (!targetMember.moderatable) return await interaction.editReply({ content: 'You cannot time out users that are higher than you or if the bot lacks permissions.' });
-      try { await targetUser.send(`You have been timed out in **${interaction.guild.name}** for **${duration} minutes**.\n**Reason:** ${reason}\n\n*Appeal by messaging @realsmexyaidan*`); } catch (e) {}
-      await targetMember.timeout(duration * 60 * 1000, reason);
-      const logEmbed = new EmbedBuilder().setTitle('User Timed Out').setColor('#2b2d31').addFields(
-        { name: 'Target', value: `<@${targetUser.id}>\nTag: \`${targetUser.tag}\`\nID: \`${targetUser.id}\``, inline: true },
-        { name: 'Moderator', value: `<@${interaction.user.id}>`, inline: true },
-        { name: 'Duration', value: `${duration} minutes`, inline: true },
-        { name: 'Reason', value: reason }
-      );
-      if (logChannel) logChannel.send({ embeds: [logEmbed] });
-      return await interaction.editReply({ content: `Successfully timed out <@${targetUser.id}> for ${duration} minutes.` });
-    }
-
-    if (subcommand === 'ban') {
-      if (!targetMember.bannable) return await interaction.editReply({ content: 'You cannot ban users that are higher than you or if the bot lacks permissions.' });
-      try { await targetUser.send(`You have been banned from **${interaction.guild.name}**.\n**Reason:** ${reason}\n\n*Appeal by messaging @realsmexyaidan*`); } catch (e) {}
-      await targetMember.ban({ reason: reason });
-      const logEmbed = new EmbedBuilder().setTitle('User Banned').setColor('#2b2d31').addFields(
-        { name: 'Target', value: `<@${targetUser.id}>\nTag: \`${targetUser.tag}\`\nID: \`${targetUser.id}\``, inline: true },
-        { name: 'Moderator', value: `<@${interaction.user.id}>`, inline: true },
-        { name: 'Reason', value: reason }
-      );
-      if (logChannel) logChannel.send({ embeds: [logEmbed] });
-      return await interaction.editReply({ content: `Successfully banned ${targetUser.tag}.` });
-    }
+    const log = interaction.guild.channels.cache.get('1396953023426727998');
+    if (log) log.send({ embeds: [new EmbedBuilder().setTitle(title).setColor('#2b2d31').addFields({ name: 'Target', value: `<@${target.id}>\nID: \`${target.id}\``, inline: true }, { name: 'Mod', value: `<@${interaction.user.id}>`, inline: true }, { name: 'Reason', value: reason })] });
+    return interaction.editReply(`Successfully executed ${sub} action on target player structure.`);
   }
 
-  // ----------------------------------------
-  // --- [MODERATION]: COMMAND: PURGE ---
-  // ----------------------------------------
   if (commandName === 'purge') {
-    if (!interaction.member.permissions.has('ManageMessages')) {
-      return await interaction.reply({ content: 'You do not have permission to use the purge command.', ephemeral: true });
-    }
-    const amount = interaction.options.getInteger('amount');
-    const LOG_CHANNEL_ID = '1396953023426727998'; 
-    const logChannel = interaction.guild.channels.cache.get(LOG_CHANNEL_ID);
-
-    if (amount < 1 || amount > 100) return await interaction.reply({ content: 'Please provide an amount between 1 and 100.', ephemeral: true });
+    if (!interaction.member.permissions.has('ManageMessages')) return interaction.reply({ content: 'Lacking standard clearance configuration rules.', ephemeral: true });
+    const amt = interaction.options.getInteger('amount'); if (amt < 1 || amt > 100) return interaction.reply({ content: 'Bound range parameter error.', ephemeral: true });
     await interaction.deferReply({ ephemeral: true });
-
     try {
-      const deleted = await interaction.channel.bulkDelete(amount, true);
-      const logEmbed = new EmbedBuilder().setTitle('Messages Purged').setColor('#2b2d31').addFields(
-        { name: 'Channel', value: `<#${interaction.channel.id}>`, inline: true },
-        { name: 'Moderator', value: `<@${interaction.user.id}>`, inline: true },
-        { name: 'Amount Requested', value: `\`${amount}\``, inline: true },
-        { name: 'Actual Deleted', value: `\`${deleted.size}\``, inline: true }
-      );
-      if (logChannel) logChannel.send({ embeds: [logEmbed] });
-      return await interaction.editReply({ content: `Successfully cleared \`${deleted.size}\` messages from this channel` });
-    } catch (error) {
-      return await interaction.editReply({ content: 'There was an error trying to purge messages in this channel (Messages older than 14 days cannot be purged)' });
-    }
+      const del = await interaction.channel.bulkDelete(amt, true);
+      const log = interaction.guild.channels.cache.get('1396953023426727998');
+      if (log) log.send({ embeds: [new EmbedBuilder().setTitle('Messages Purged').setColor('#2b2d31').addFields({ name: 'Channel', value: `<#${interaction.channel.id}>`, inline: true }, { name: 'Mod', value: `<@${interaction.user.id}>`, inline: true }, { name: 'Deleted Count', value: `\`${del.size}\``, inline: true })] });
+      return interaction.editReply(`Cleared \`${del.size}\` entries.`);
+    } catch { return interaction.editReply('Purge operational runtime failure.'); }
   }
 
-  // ----------------------------------------
-  // --- [UTILITY]: COMMAND: QUOTE ---
-  // ----------------------------------------
+  // Commands
   if (commandName === 'quote') {
-    const messageId = interaction.options.getString('message_id');
     await interaction.deferReply();
     try {
-      const targetMessage = await interaction.channel.messages.fetch(messageId);
-      if (!targetMessage.content) return await interaction.editReply({ content: 'That message does not contain any text to quote.' });
+      const targetMessage = await interaction.channel.messages.fetch(interaction.options.getString('message_id'));
+      if (!targetMessage.content) return interaction.editReply('Empty payload asset string.');
 
-      // 1. Setup Canvas Layout (800x400 landscape)
-      const canvas = createCanvas(800, 400);
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#000000';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const canvas = createCanvas(800, 400), ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, 800, 400);
+      ctx.drawImage(await loadImage(targetMessage.author.displayAvatarURL({ extension: 'png', size: 512 })), 0, 0, 400, 400);
 
-      // 2. Load Color Avatar & Apply Smooth Gradient Mask (Never B&W)
-      const avatarUrl = targetMessage.author.displayAvatarURL({ extension: 'png', size: 512 });
-      const avatarImage = await loadImage(avatarUrl);
-      ctx.drawImage(avatarImage, 0, 0, 400, 400);
+      const grad = ctx.createLinearGradient(150, 0, 400, 0); grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(1, 'rgba(0,0,0,1)');
+      ctx.fillStyle = grad; ctx.fillRect(0, 0, 400, 400);
 
-      const gradient = ctx.createLinearGradient(150, 0, 400, 0);
-      gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
-      gradient.addColorStop(1, 'rgba(0, 0, 0, 1)');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, 400, 400);
-
-      // 3. Reliable Dynamic Text Layout Function Engine
-      // This system keeps the text layout state and returns the precise measurements we need.
-      function getQuoteLayout(context, textWords, maxW, startFont) {
-        let fontSz = startFont;
-        let spacing = startFont + 10;
-        let sY = 160;
-        let linesArr = [];
-
-        // Loop down sizing steps if wrapping requires compression
-        while (fontSz >= 14) {
-          context.font = `${fontSz}px "CustomArial"`;
-          context.textAlign = 'center';
-          context.textBaseline = 'middle';
-          
-          let testLine = '';
-          linesArr = [];
-
-          for (let n = 0; n < textWords.length; n++) {
-            let testString = testLine + textWords[n] + ' ';
-            if (context.measureText(testString).width > maxW && n > 0) {
-              linesArr.push(testLine.trim());
-              testLine = textWords[n] + ' ';
-            } else {
-              testLine = testString;
-            }
+      function getQuoteLayout(c, words, maxW, startFont) {
+        let fSz = startFont, spacing = fSz + 10, sY = 160, lines = [];
+        while (fSz >= 14) {
+          c.font = `${fSz}px "CustomArial"`; c.textAlign = 'center'; c.textBaseline = 'middle';
+          let testLine = ''; lines = [];
+          for (let n = 0; n < words.length; n++) {
+            let testStr = testLine + words[n] + ' ';
+            if (c.measureText(testStr).width > maxW && n > 0) { lines.push(testLine.trim()); testLine = words[n] + ' '; }
+            else testLine = testStr;
           }
-          linesArr.push(testLine.trim());
-
-          // Establish clean positioning rules base heights
-          if (fontSz === 32) { spacing = 42; sY = 160; }
-          else if (fontSz === 26) { spacing = 34; sY = 130; }
-          else if (fontSz === 20) { spacing = 26; sY = 100; }
-          else if (fontSz === 14) { spacing = 18; sY = 60; }
-
-          const maxLimit = fontSz === 14 ? 14 : (fontSz === 20 ? 9 : (fontSz === 26 ? 6 : 4));
-          if (linesArr.length <= maxLimit) break; // Fits!
-
-          // Step down sizing configs
-          if (fontSz === 32) fontSz = 26;
-          else if (fontSz === 26) fontSz = 20;
-          else if (fontSz === 20) fontSz = 14;
-          else break;
+          lines.push(testLine.trim());
+          if (fSz === 32) { spacing = 42; sY = 160; } else if (fSz === 26) { spacing = 34; sY = 130; } else if (fSz === 20) { spacing = 26; sY = 100; } else { spacing = 18; sY = 60; }
+          if (lines.length <= (fSz === 14 ? 14 : fSz === 20 ? 9 : fSz === 26 ? 6 : 4)) break;
+          fSz = fSz === 32 ? 26 : fSz === 26 ? 20 : fSz === 20 ? 14 : 0;
         }
-        return { lines: linesArr, fontSize: fontSz, lineSpacing: spacing, startY: sY };
+        return { lines, fontSize: fSz, lineSpacing: spacing, startY: sY };
       }
 
-      const words = targetMessage.content.split(' ');
-      const maxWidth = 350;
-      const xPos = 600; 
+      let layout = getQuoteLayout(ctx, targetMessage.content.split(' '), 350, 32);
+      if (layout.lines.length > 14) { layout.lines = layout.lines.slice(0, 14); layout.lines[13] = layout.lines[13].replace(/[\s,.-]+$/, "") + "..."; }
 
-      // Execute typographic measurements
-      let layout = getQuoteLayout(ctx, words, maxWidth, 32);
+      ctx.fillStyle = '#ffffff'; ctx.font = `${layout.fontSize}px "CustomArial"`;
+      let y = layout.startY; layout.lines.forEach(l => { ctx.fillText(l, 600, y); y += layout.lineSpacing; });
 
-      // Handle extreme outliers truncation configuration safeguards
-      if (layout.lines.length > 14) {
-        layout.lines = layout.lines.slice(0, 14);
-        layout.lines[layout.lines.length - 1] = layout.lines[layout.lines.length - 1].replace(/[\s,.-]+$/, "") + "...";
-      }
+      y += 20; ctx.fillStyle = '#aaaaaa'; ctx.font = 'italic 22px "CustomArial"'; ctx.fillText(`- ${targetMessage.author.displayName || targetMessage.author.username}`, 600, y);
+      y += 26; ctx.fillStyle = '#666666'; ctx.font = '16px "CustomArial"'; ctx.fillText(`@${targetMessage.author.username}`, 600, y);
+      ctx.fillStyle = '#555555'; ctx.font = 'italic 12px "CustomArial"'; ctx.textAlign = 'right'; ctx.fillText('Aidan Bot', 790, 390);
 
-      // 4. Render the Quote Text Block
-      ctx.fillStyle = '#ffffff';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.font = `${layout.fontSize}px "CustomArial"`;
-
-      let yPos = layout.startY;
-      layout.lines.forEach((textLine) => { 
-        ctx.fillText(textLine, xPos, yPos); 
-        yPos += layout.lineSpacing; 
-      });
-
-      // 5. Dynamic Author Layout (ANCHORED TO TEXT HEIGHT)
-      // The starting point for the name is now calculated relative to the end of the text.
-      yPos += 20; 
-      ctx.fillStyle = '#aaaaaa'; 
-      ctx.font = 'italic 22px "CustomArial"'; 
-      ctx.textAlign = 'center';
-      ctx.fillText(`- ${targetMessage.author.displayName || targetMessage.author.username}`, xPos, yPos);
-
-      yPos += 26;
-      ctx.fillStyle = '#666666'; 
-      ctx.font = '16px "CustomArial"'; 
-      ctx.textAlign = 'center';
-      ctx.fillText(`@${targetMessage.author.username}`, xPos, yPos);
-      
-      // 6. BRAND WATERMARK (Anchored to Canvas Bottom-Right)
-      ctx.fillStyle = '#555555'; // Subtle gray watermark
-      ctx.font = 'italic 12px "CustomArial"'; 
-      ctx.textAlign = 'right';
-      ctx.fillText(`Aidan Bot`, 790, 390);
-
-      // 7. Send the finalized asset file
-      const buffer = canvas.toBuffer('image/png');
-      const attachment = new AttachmentBuilder(buffer, { name: `quote_${targetMessage.id}.png` });
-      return await interaction.editReply({ files: [attachment] });
-    } catch (error) {
-      console.error(error);
-      return await interaction.editReply({ content: 'Could not find that message. Make sure the ID is correct and from this channel.' });
-    }
+      return interaction.editReply({ files: [new AttachmentBuilder(canvas.toBuffer('image/png'), { name: `quote_${targetMessage.id}.png` })] });
+    } catch { return interaction.editReply('Invalid layout reference target identifier.'); }
   }
-  
 
-  // ----------------------------------------
-  // --- [STATS]: COMMAND: LEVEL ---
-  // ----------------------------------------
   if (commandName === 'level') {
-    const targetUser = interaction.options.getUser('user') || user;
-    const userData = await getUserData(targetUser.id);
-    const xpNeeded = (userData.level * 50) + 50;
-
-    const allUsers = await pool.query('SELECT user_id FROM users ORDER BY level DESC, xp DESC');
-    const rank = allUsers.rows.findIndex(p => p.user_id === targetUser.id) + 1 || 'Unranked';
-
-    const lvlEmbed = new EmbedBuilder()
-      .setAuthor({ name: targetUser.username, iconURL: targetUser.displayAvatarURL() })
-      .addFields(
-        { name: 'Rank', value: `#${rank}`, inline: true },
-        { name: 'Level', value: `${userData.level}`, inline: true },
-        { name: 'XP Progress', value: `${userData.xp} / ${xpNeeded} XP`, inline: true }
-      )
-      .setColor('#2b2d31');
-
-    return await interaction.reply({ embeds: [lvlEmbed] });
+    const target = interaction.options.getUser('user') || user, uData = await getUserData(target.id), reqXp = (uData.level * 50) + 50;
+    const rank = (await pool.query('SELECT user_id FROM users ORDER BY level DESC, xp DESC')).rows.findIndex(p => p.user_id === target.id) + 1 || 'Unranked';
+    return interaction.reply({ embeds: [new EmbedBuilder().setAuthor({ name: target.username, iconURL: target.displayAvatarURL() }).addFields({ name: 'Rank', value: `#${rank}`, inline: true }, { name: 'Level', value: `${uData.level}`, inline: true }, { name: 'XP Progress', value: `${uData.xp} / ${reqXp} XP`, inline: true }).setColor('#2b2d31')] });
   }
 
-// ----------------------------------------
-// --- [STATS]: COMMAND: LEADERBOARD ---
-// ----------------------------------------
-if (commandName === 'leaderboard') {
-  const res = await pool.query('SELECT * FROM users ORDER BY level DESC, xp DESC LIMIT 10');
-  let description = '';
-  const medals = ['🥇', '🥈', '🥉'];
+  if (commandName === 'leaderboard') {
+    const res = await pool.query('SELECT * FROM users ORDER BY level DESC, xp DESC LIMIT 10');
+    const medals = ['🥇', '🥈', '🥉'];
+    let desc = res.rows.map((p, i) => `${i < 3 ? medals[i] : `**${i + 1}**`} <@${p.user_id}> • **Level ${p.level}** • ${p.xp}/${(p.level * 50) + 50} XP`).join('\n');
+    return interaction.reply({ embeds: [new EmbedBuilder().setTitle('Aidansville Level Leaderboard').setDescription(desc || 'No entry items found.').setColor('#2b2d31').setThumbnail(interaction.guild.iconURL())] });
+  }
 
-  res.rows.forEach((player, idx) => {
-    const prefix = idx < 3 ? `${medals[idx]} ` : `**${idx + 1}** `;
-    const nextLvlXp = (player.level * 50) + 50;
-    description += `${prefix}<@${player.user_id}> • **Level ${player.level}** • ${player.xp}/${nextLvlXp} XP\n`;
-  });
-
-  const lbEmbed = new EmbedBuilder()
-    .setTitle('Aidansville Level Leaderboard')
-    .setDescription(description || 'No one has earned XP yet!')
-    .setColor('#2b2d31')
-    .setThumbnail(interaction.guild.iconURL());
-
-  return await interaction.reply({ embeds: [lbEmbed] });
-}
-  
-  // ----------------------------------------
-  // --- [UTILITY]: COMMAND: PING ---
-  // ----------------------------------------
   if (commandName === 'ping') {
-    const initialEmbed = new EmbedBuilder().setDescription('Pinging Aidan Bot...').setColor('#2b2d31');
-    const sent = await interaction.reply({ embeds: [initialEmbed], fetchReply: true });
-    const latency = sent.createdTimestamp - interaction.createdTimestamp;
-    const finalEmbed = new EmbedBuilder()
-      .setDescription(`Aidan Bot is online\n\nResponded within **${latency}ms**`)
-      .setColor('#2b2d31')
-      .setThumbnail(client.user.displayAvatarURL());
-    await interaction.editReply({ embeds: [finalEmbed] });
+    const sent = await interaction.reply({ embeds: [new EmbedBuilder().setDescription('Pinging Aidan Bot...').setColor('#2b2d31')], fetchReply: true });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setDescription(`Aidan Bot is online\n\nResponded within **${sent.createdTimestamp - interaction.createdTimestamp}ms**`).setColor('#2b2d31').setThumbnail(client.user.displayAvatarURL())] });
   }
 
-  // ----------------------------------------
-  // --- [FUN]: COMMAND: DAPUP ---
-  // ----------------------------------------
   if (commandName === 'dapup') {
-    const targetUser = interaction.options.getUser('user');
-    const senderId = interaction.user.id;
-
-    await getUserData(senderId);
-    await pool.query('UPDATE users SET daps = daps + 1 WHERE user_id = $1', [senderId]);
-
-    const dapEmbed = new EmbedBuilder()
-      .setDescription(`<@${senderId}> dapped up <@${targetUser.id}>`)
-      .setColor('#2b2d31')
-      .setImage('https://media3.giphy.com/media/v1.Y2lkPTZjMDliOTUyeHJnbWZrZm5wOXpzY2x2aWF2b3U0OWloZ2FxcThrOWhja2IzM3NsbCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/zSt9sNWYqGQb6gKCak/giphy.gif');
-    
-    await interaction.reply({ embeds: [dapEmbed] });
+    const target = interaction.options.getUser('user');
+    await getUserData(interaction.user.id);
+    await pool.query('UPDATE users SET daps = daps + 1 WHERE user_id = $1', [interaction.user.id]);
+    return interaction.reply({ embeds: [new EmbedBuilder().setDescription(`<@${interaction.user.id}> dapped up <@${target.id}>`).setColor('#2b2d31').setImage('https://media3.giphy.com/media/v1.Y2lkPTZjMDliOTUyeHJnbWZrZm5wOXpzY2x2aWF2b3U0OWloZ2FxcThrOWhja2IzM3NsbCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/zSt9sNWYqGQb6gKCak/giphy.gif')] });
   }
 
-  // ----------------------------------------
-  // --- [FUN]: COMMAND: SAY ---
-  // ----------------------------------------
-  if (commandName === 'say') {
-    const userMessage = interaction.options.getString('message');
-    await interaction.reply({ content: userMessage });
-  }
+  if (commandName === 'say') return interaction.reply({ content: interaction.options.getString('message') });
 });
 
 client.login(TOKEN);
