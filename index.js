@@ -1,40 +1,38 @@
-//                                                                      
-//                                               +####* //                                                       
-//                                        @. @@@@@@@@@@@@#. :* //                                                 
-//                                      + @@@@  @@@@@  +@@@@@@.:         
-//                                     @ #@@@@@@#*@*@@@@@@@@@@@ #        
-//                                     @ #@@@@@@@  .@@@@@@@@@@@-         
-//                                      # .@@@@@@@@@@@@@@@@@ #@%         
-//                                        @:   -*@@@@@%=  .+@@@%       * //                                             
-//                    @@                @@@@@@@@@     . @@@@@@@@ :   = @@
-//                  @@.@@         @@@@*=:::..  :-+@@@@@.=@@@@@@@ % @+ @@@
-//      @@@@@@@@@ @@-  +@@@@@@@@@@@.    =====-        :=#@@@@@@- ##=    .
-// @@@@@:       +%#  :#              -:                                 .
-// @@@@@:      ...                                   :@@@   .:          .
-//     @@@@@@@@@@@@@@@@%####.        -%              .@@  @@@@@@@#.     :
-//                         @@@@@@@@@@@@* # --       @@+ @@@@@=    *@@@
-//                                    @@   @@@@@@      @@@: #@@@@@@@    .
-//                                   @@:   %@   @@*=   @@  :  @@@@@- ++  
-//                                  @@. ..=@@      @@# -@@   %=-.       .
-//                                   @@@@@@          @@@         - @@@:-@
-//                                                               - @@@ @@
-//                                                               .:@@@ @@
-//                                                              @ .@@@ @@
-//                                                               @*-.:=
-//                                                                    
-//  █████╗ ██╗██████╗  █████╗ ███╗   ██╗    ██████╗  ██████╗ ████████╗
-// ██╔══██╗██║██╔══██╗██╔══██╗████╗  ██║    ██╔══██╗██╔═══██╗╚══██╔══╝
-// ███████║██║██║  ██║███████║██╔██╗ ██║    ██████╔╝██║   ██║   ██║   
-// ██╔══██║██║██║  ██║██╔══██║██║╚██╗██║    ██╔══██╗██║   ██║   ██║   
-// ██║  ██║██║██████╔╝██║  ██║██║ ╚████║    ██████╔╝╚██████╔╝   ██║   
-// ╚═╝  ╚═╝╚═╝╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═══╝    ╚═════╝  ╚═════╝   ╚═╝   
+//                                                                               
+//                                                +####* //                                         @. @@@@@@@@@@@@#. :* //                                       + @@@@  @@@@@  +@@@@@@.:                 
+//                                      @ #@@@@@@#*@*@@@@@@@@@@@ #                
+//                                      @ #@@@@@@@  .@@@@@@@@@@@-                 
+//                                       # .@@@@@@@@@@@@@@@@@ #@%                 
+//                                         @:    -*@@@@@%=   .+@@@%        * //                     @@                 @@@@@@@@@     . @@@@@@@@ :   = @@       
+//                   @@.@@         @@@@*=:::..  :-+@@@@@.=@@@@@@@ % @+ @@@        
+//       @@@@@@@@@ @@-   +@@@@@@@@@@@.   =====-        :=#@@@@@@- ##=    .        
+//  @@@@@:       +%#  :#              -:                                 .        
+//  @@@@@:       ...                                     :@@@   .:       .        
+//       @@@@@@@@@@@@@@@@%####.         -%               .@@  @@@@@@@#.     :     
+//                          @@@@@@@@@@@@* # --        @@+ @@@@@=    *@@@          
+//                                     @@   @@@@@@      @@@: #@@@@@@@    .        
+//                                    @@:   %@   @@*=   @@  :  @@@@@- ++          
+//                                   @@. ..=@@      @@# -@@   %=-.        .       
+//                                    @@@@@@           @@@         - @@@:-@       
+//                                                                 - @@@ @@       
+//                                                                 .:@@@ @@       
+//                                                               @ .@@@ @@       
+//                                                                @*-.:=          
+//                                                                                
+//   █████╗ ██╗██████╗  █████╗ ███╗   ██╗    ██████╗  ██████╗ ████████╗           
+//  ██╔══██╗██║██╔══██╗██╔══██╗████╗  ██║    ██╔══██╗██╔═══██╗╚══██╔══╝           
+//  ███████║██║██║  ██║███████║██╔██╗ ██║    ██████╔╝██║   ██║   ██║              
+//  ██╔══██║██║██║  ██║██╔══██║██║╚██╗██║    ██╔══██╗██║   ██║   ██║              
+//  ██║  ██║██║██████╔╝██║  ██║██║ ╚████║    ██████╔╝╚██████╔╝   ██║              
+//  ╚═╝  ╚═╝╚═╝╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═══╝    ╚═════╝  ╚═════╝   ╚═╝              
 //
-//                © 2026 AIDAN Industries. All rights reserved.
+//                 © 2026 AIDAN Industries. All rights reserved.
 //
 // ==============================================================================
 
 const { createCanvas, loadImage, GlobalFonts } = require('@napi-rs/canvas');
 const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ApplicationCommandOptionType, Collection, ActivityType, Partials, AttachmentBuilder } = require('discord.js');
+const { joinVoiceChannel } = require('@discordjs/voice'); // Required voice helper import
 const express = require('express');
 const { Pool } = require('pg');
 const path = require('path');
@@ -50,6 +48,27 @@ app.listen(PORT);
 let TOKEN = process.env.TOKEN, CLIENT_ID = process.env.CLIENT_ID, DATABASE_URL = process.env.DATABASE_URL;
 if (!TOKEN || !CLIENT_ID || !DATABASE_URL) {
   try { const config = require('./config.json'); TOKEN ||= config.TOKEN; CLIENT_ID ||= config.CLIENT_ID; DATABASE_URL ||= config.DATABASE_URL; } catch { console.log("ℹ️ Running via environment variables."); }
+}
+
+// Global Music Configuration & Channel Constraints
+const MAIN_VOICE_CHANNEL_ID = '1445952337100280009';
+const musicQueues = new Map(); 
+
+// Dummy helper functions - Replace these with your actual voice player/queue manager implementations
+function getQueue(guildId) {
+  if (!musicQueues.has(guildId)) {
+    musicQueues.set(guildId, {
+      connection: null,
+      player: null,
+      currentSong: null,
+      songs: []
+    });
+  }
+  return musicQueues.get(guildId);
+}
+async function playNext(guildId) {
+  // Your playback/streaming logic here
+  console.log(`Processing next track in queue for Guild: ${guildId}`);
 }
 
 // Database Utilities
@@ -165,7 +184,7 @@ client.on('messageReactionRemove', (r, u) => handleReaction(r, u, false));
 // Core Multi-Interaction System Router Module
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
-  const { commandName, user } = interaction, now = Date.now(), COOLDOWN_AMOUNT = 5000;
+  const { commandName, user, guildId } = interaction, now = Date.now(), COOLDOWN_AMOUNT = 5000;
   
   if (!cooldowns.has(commandName)) cooldowns.set(commandName, new Collection());
   const timestamps = cooldowns.get(commandName);
@@ -269,7 +288,7 @@ client.on('interactionCreate', async interaction => {
     return interaction.editReply({ embeds: [new EmbedBuilder().setDescription(`Aidan Bot is online\n\nResponded within **${sent.createdTimestamp - interaction.createdTimestamp}ms**`).setColor('#2b2d31').setThumbnail(client.user.displayAvatarURL())] });
   }
 
-if (commandName === 'dapup') {
+  if (commandName === 'dapup') {
     const target = interaction.options.getUser('user');
     await getUserData(interaction.user.id);
     await pool.query('UPDATE users SET daps = daps + 1 WHERE user_id = $1', [interaction.user.id]);
@@ -278,6 +297,7 @@ if (commandName === 'dapup') {
 
   if (commandName === 'say') return interaction.reply({ content: interaction.options.getString('message') });
 
+  // ================= MUSIC COMMAND LOGIC =================
 
   if (commandName === 'play') {
     const voiceChannel = interaction.member.voice.channel;
@@ -358,7 +378,7 @@ if (commandName === 'dapup') {
       .setTitle('Aidansville Playback Queue')
       .setColor('#2b2d31');
 
-    let desc = `**Now Playing:**\n ${queue.currentSong.title} (Requested by <@${queue.currentSong.requestedBy}>)\n\n`;
+    let desc = `**Now Playing:**\n🎶 ${queue.currentSong.title} (Requested by <@${queue.currentSong.requestedBy}>)\n\n`;
 
     if (queue.songs.length > 0) {
       desc += `**Up Next:**\n`;
