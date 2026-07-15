@@ -188,7 +188,7 @@ client.on('messageCreate', async msg => {
 
     try {
       const member = await msg.guild.members.fetch(msg.author.id);
-      const milestones = [{ lvl: 50, id: '1505615177972846682' }, { lvl: 25, id: '1505613327873073276' }, { lvl: 10, id: '1505614729651949771' }, { lvl: 1, id: '1520015021894144130' }];
+      const milestones = [{ lvl: 50, id: '1505615177972846682' }, { lvl: 25, id: '1505615327873073276' }, { lvl: 10, id: '1505614729651949771' }, { lvl: 1, id: '1520015021894144130' }];
       for (const m of milestones) {
         if (nLvl >= m.lvl) {
           const r = msg.guild.roles.cache.get(m.id);
@@ -455,12 +455,20 @@ client.on('interactionCreate', async interaction => {
 });
 
 // Auto-disconnect when the voice channel becomes empty of humans
-client.on('voiceStateUpdate', (oldState, newState) => {
+client.on('voiceStateUpdate', async (oldState, newState) => {
   const queue = musicQueues.get(oldState.guild.id);
   if (!queue || !queue.connection) return;
 
   const botChannelId = queue.connection.joinConfig.channelId;
-  const channel = oldState.guild.channels.cache.get(botChannelId);
+  let channel = oldState.guild.channels.cache.get(botChannelId);
+  
+  if (!channel) {
+    try {
+      channel = await oldState.guild.channels.fetch(botChannelId);
+    } catch (e) {
+      console.error("Failed to fetch voice channel state:", e);
+    }
+  }
 
   if (channel) {
     const humanMembers = channel.members.filter(member => !member.user.bot);
