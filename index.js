@@ -358,29 +358,59 @@ if (commandName === 'play') {
       return interaction.reply({ content: 'The playback stream queue is full (**Max 10 tracks**). Wait for tracks to play out.', ephemeral: true });
     }
 
-    // Defer the reply so Discord knows we are working on it
-    await interaction.deferReply();
     const query = interaction.options.getString('query');
+
+    // Regex to validate that the link is strictly from YouTube, Spotify, or SoundCloud
+    const allowedLinkRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be|spotify\.com|soundcloud\.com)\/.+$/i;
+
+    if (!allowedLinkRegex.test(query)) {
+      return interaction.reply({ 
+        content: 'Aidan Bot only accepts direct links from **YouTube**, **Spotify**, or **SoundCloud**. Text searches and other platforms are disabled.', 
+        ephemeral: true 
+      });
+    }
+
+    // Defer reply once we know the link is valid
+    await interaction.deferReply();
 
     try {
       let songUrl = null;
       let songTitle = 'Unknown Track';
       let durationSec = 0;
 
+      // Handle YouTube links
       if (play.yt_validate(query) === 'video') {
         const info = await play.video_info(query);
         songUrl = info.video_details.url;
         songTitle = info.video_details.title;
         durationSec = info.video_details.durationInSec;
-      } else {
-        // Search YouTube
-        const searchResult = await play.search(query, { limit: 1 });
-        if (!searchResult || !searchResult.length) {
-          return interaction.editReply('No matching tracks discovered.');
+      } 
+      // Handle Spotify links (play-dl can convert these to YouTube searches internally)
+      else if (play.sp_validate(query)) {
+        if (play.is_expired()) {
+          await play.refreshToken(); // Ensure Spotify API tokens are fresh
         }
-        songUrl = searchResult[0].url;
-        songTitle = searchResult[0].title;
-        durationSec = searchResult[0].durationInSec;
+        const spotifyData = await play.spotify(query);
+        if (spotifyData.type === 'track') {
+          const searchResult = await play.search(`${spotifyData.name} ${spotifyData.artists[0].name}`, { limit: 1 });
+          if (!searchResult || !searchResult.length) {
+            return interaction.editReply('Could not find a matching YouTube track for this Spotify song.');
+          }
+          songUrl = searchResult[0].url;
+          songTitle = spotifyData.name;
+          durationSec = searchResult[0].durationInSec;
+        } else {
+          return interaction.editReply('Only individual Spotify track links are supported right now (no playlists or albums).');
+        }
+      } 
+      // Handle SoundCloud links
+      else if (play.so_validate(query)) {
+        const soundcloudData = await play.soundcloud(query);
+        songUrl = soundcloudData.url;
+        songTitle = soundcloudData.name;
+        durationSec = Math.floor(soundcloudData.duration / 1000); // Converts milliseconds to seconds
+      } else {
+        return interaction.editReply('Invalid platform link structure or unsupported URL type.');
       }
 
       if (durationSec > 900) {
@@ -395,7 +425,7 @@ if (commandName === 'play') {
           channelId: voiceChannel.id,
           guildId: voiceChannel.guild.id,
           adapterCreator: voiceChannel.guild.voiceAdapterCreator,
-          selfDeaf: false // Keep bot undeafened
+          selfDeaf: false
         });
       }
 
@@ -410,7 +440,6 @@ if (commandName === 'play') {
 
     } catch (e) {
       console.error("CRITICAL PLAY ERROR:", e);
-      // Fallback response so the bot doesn't get stuck "thinking"
       return interaction.editReply(`Streaming service query resolution failure: ${e.message || e}`);
     }
   }
