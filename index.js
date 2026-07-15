@@ -1,42 +1,46 @@
-//                                                                               
-//                                                +####* //                                         @. @@@@@@@@@@@@#. :* //                                       + @@@@  @@@@@  +@@@@@@.:                 
-//                                      @ #@@@@@@#*@*@@@@@@@@@@@ #                
-//                                      @ #@@@@@@@  .@@@@@@@@@@@-                 
-//                                       # .@@@@@@@@@@@@@@@@@ #@%                 
-//                                         @:    -*@@@@@%=   .+@@@%        * //                     @@                 @@@@@@@@@     . @@@@@@@@ :   = @@       
-//                   @@.@@         @@@@*=:::..  :-+@@@@@.=@@@@@@@ % @+ @@@        
-//       @@@@@@@@@ @@-   +@@@@@@@@@@@.   =====-        :=#@@@@@@- ##=    .        
-//  @@@@@:       +%#  :#              -:                                 .        
-//  @@@@@:       ...                                     :@@@   .:       .        
-//       @@@@@@@@@@@@@@@@%####.         -%               .@@  @@@@@@@#.     :     
-//                          @@@@@@@@@@@@* # --        @@+ @@@@@=    *@@@          
-//                                     @@   @@@@@@      @@@: #@@@@@@@    .        
-//                                    @@:   %@   @@*=   @@  :  @@@@@- ++          
-//                                   @@. ..=@@      @@# -@@   %=-.        .       
-//                                    @@@@@@           @@@         - @@@:-@       
-//                                                                 - @@@ @@       
-//                                                                 .:@@@ @@       
-//                                                               @ .@@@ @@       
-//                                                                @*-.:=          
-//                                                                                
-//   █████╗ ██╗██████╗  █████╗ ███╗   ██╗    ██████╗  ██████╗ ████████╗           
-//  ██╔══██╗██║██╔══██╗██╔══██╗████╗  ██║    ██╔══██╗██╔═══██╗╚══██╔══╝           
-//  ███████║██║██║  ██║███████║██╔██╗ ██║    ██████╔╝██║   ██║   ██║              
-//  ██╔══██║██║██║  ██║██╔══██║██║╚██╗██║    ██╔══██╗██║   ██║   ██║              
-//  ██║  ██║██║██████╔╝██║  ██║██║ ╚████║    ██████╔╝╚██████╔╝   ██║              
-//  ╚═╝  ╚═╝╚═╝╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═══╝    ╚═════╝  ╚═════╝   ╚═╝              
+//                                                                      
+//                                               +####* //                                                       
+//                                        @. @@@@@@@@@@@@#. :* //                                                 
+//                                      + @@@@  @@@@@  +@@@@@@.:         
+//                                     @ #@@@@@@#*@*@@@@@@@@@@@ #        
+//                                     @ #@@@@@@@  .@@@@@@@@@@@-         
+//                                      # .@@@@@@@@@@@@@@@@@ #@%         
+//                                        @:   -*@@@@@%=  .+@@@%       * //                                             
+//                    @@                @@@@@@@@@     . @@@@@@@@ :   = @@
+//                  @@.@@         @@@@*=:::..  :-+@@@@@.=@@@@@@@ % @+ @@@
+//      @@@@@@@@@ @@-  +@@@@@@@@@@@.    =====-        :=#@@@@@@- ##=    .
+// @@@@@:       +%#  :#              -:                                 .
+// @@@@@:      ...                                   :@@@   .:          .
+//     @@@@@@@@@@@@@@@@%####.        -%              .@@  @@@@@@@#.     :
+//                         @@@@@@@@@@@@* # --       @@+ @@@@@=    *@@@
+//                                    @@   @@@@@@      @@@: #@@@@@@@    .
+//                                   @@:   %@   @@*=   @@  :  @@@@@- ++  
+//                                  @@. ..=@@      @@# -@@   %=-.       .
+//                                   @@@@@@          @@@         - @@@:-@
+//                                                               - @@@ @@
+//                                                               .:@@@ @@
+//                                                              @ .@@@ @@
+//                                                               @*-.:=
+//                                                                    
+//  █████╗ ██╗██████╗  █████╗ ███╗   ██╗    ██████╗  ██████╗ ████████╗
+// ██╔══██╗██║██╔══██╗██╔══██╗████╗  ██║    ██╔══██╗██╔═══██╗╚══██╔══╝
+// ███████║██║██║  ██║███████║██╔██╗ ██║    ██████╔╝██║   ██║   ██║   
+// ██╔══██║██║██║  ██║██╔══██║██║╚██╗██║    ██╔══██╗██║   ██║   ██║   
+// ██║  ██║██║██████╔╝██║  ██║██║ ╚████║    ██████╔╝╚██████╔╝   ██║   
+// ╚═╝  ╚═╝╚═╝╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═══╝    ╚═════╝  ╚═════╝   ╚═╝   
 //
-//                 © 2026 AIDAN Industries. All rights reserved.
+//                © 2026 AIDAN Industries. All rights reserved.
 //
 // ==============================================================================
 
 const { createCanvas, loadImage, GlobalFonts } = require('@napi-rs/canvas');
 const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ApplicationCommandOptionType, Collection, ActivityType, Partials, AttachmentBuilder } = require('discord.js');
-const { joinVoiceChannel } = require('@discordjs/voice'); // Required voice helper import
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
 const express = require('express');
 const { Pool } = require('pg');
 const path = require('path');
 const play = require('play-dl');
+
 GlobalFonts.registerFromPath(path.join(__dirname, 'ARIAL.TTF'), 'CustomArial');
 
 // Web Server
@@ -52,9 +56,8 @@ if (!TOKEN || !CLIENT_ID || !DATABASE_URL) {
 
 // Global Music Configuration & Channel Constraints
 const MAIN_VOICE_CHANNEL_ID = '1445952337100280009';
-const musicQueues = new Map(); 
+const musicQueues = new Map();
 
-// Dummy helper functions - Replace these with your actual voice player/queue manager implementations
 function getQueue(guildId) {
   if (!musicQueues.has(guildId)) {
     musicQueues.set(guildId, {
@@ -66,9 +69,46 @@ function getQueue(guildId) {
   }
   return musicQueues.get(guildId);
 }
+
+// Core Streaming & Audio Playback Logic
 async function playNext(guildId) {
-  // Your playback/streaming logic here
-  console.log(`Processing next track in queue for Guild: ${guildId}`);
+  const queue = musicQueues.get(guildId);
+  if (!queue || queue.songs.length === 0) {
+    if (queue && queue.connection) {
+      queue.connection.destroy();
+      musicQueues.delete(guildId);
+    }
+    return;
+  }
+
+  queue.currentSong = queue.songs.shift();
+
+  try {
+    if (!queue.player) {
+      queue.player = createAudioPlayer();
+      queue.connection.subscribe(queue.player);
+
+      queue.player.on(AudioPlayerStatus.Idle, () => {
+        playNext(guildId);
+      });
+
+      queue.player.on('error', error => {
+        console.error('Audio Player Error:', error);
+        playNext(guildId);
+      });
+    }
+
+    const stream = await play.stream(queue.currentSong.url);
+    const resource = createAudioResource(stream.stream, {
+      inputType: stream.type
+    });
+
+    queue.player.play(resource);
+
+  } catch (error) {
+    console.error('Error starting playback:', error);
+    playNext(guildId);
+  }
 }
 
 // Database Utilities
@@ -76,6 +116,7 @@ const pool = new Pool({ connectionString: DATABASE_URL, ssl: process.env.DATABAS
 async function initDb() {
   await pool.query('CREATE TABLE IF NOT EXISTS users (user_id VARCHAR(20) PRIMARY KEY, xp INTEGER DEFAULT 0, level INTEGER DEFAULT 0, daps INTEGER DEFAULT 0)');
 }
+
 async function getUserData(userId) {
   const res = await pool.query('SELECT * FROM users WHERE user_id = $1', [userId]);
   if (res.rows.length === 0) {
@@ -343,7 +384,7 @@ client.on('interactionCreate', async interaction => {
         return interaction.editReply('This track exceeds the 15-minute runtime threshold limit.');
       }
 
-      const song = { title: songTitle, url: songUrl, requestedBy: user.id };
+      const song = { title: songTitle, url: songUrl, requestedBy: interaction.user.id };
 
       if (!queue.connection) {
         queue.connection = joinVoiceChannel({
@@ -410,6 +451,26 @@ client.on('interactionCreate', async interaction => {
     musicQueues.delete(guildId);
 
     return interaction.reply({ embeds: [new EmbedBuilder().setDescription('Playback terminated. Disconnecting from Voice Channel.').setColor('#2b2d31')] });
+  }
+});
+
+// Auto-disconnect when the voice channel becomes empty of humans
+client.on('voiceStateUpdate', (oldState, newState) => {
+  const queue = musicQueues.get(oldState.guild.id);
+  if (!queue || !queue.connection) return;
+
+  const botChannelId = queue.connection.joinConfig.channelId;
+  const channel = oldState.guild.channels.cache.get(botChannelId);
+
+  if (channel) {
+    const humanMembers = channel.members.filter(member => !member.user.bot);
+
+    if (humanMembers.size === 0) {
+      if (queue.player) queue.player.stop();
+      if (queue.connection) queue.connection.destroy();
+      musicQueues.delete(oldState.guild.id);
+      console.log(`Leaving empty voice channel: ${channel.name}`);
+    }
   }
 });
 
