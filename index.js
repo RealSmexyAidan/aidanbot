@@ -36,7 +36,7 @@ const { joinVoiceChannel } = require('@discordjs/voice'); // Required voice help
 const express = require('express');
 const { Pool } = require('pg');
 const path = require('path');
-
+const play = require('play-dl');
 GlobalFonts.registerFromPath(path.join(__dirname, 'ARIAL.TTF'), 'CustomArial');
 
 // Web Server
