@@ -340,7 +340,7 @@ client.on('interactionCreate', async interaction => {
 
   // ================= MUSIC COMMAND LOGIC =================
 
-  if (commandName === 'play') {
+if (commandName === 'play') {
     const voiceChannel = interaction.member.voice.channel;
     
     if (!voiceChannel) {
@@ -358,6 +358,7 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ content: 'The playback stream queue is full (**Max 10 tracks**). Wait for tracks to play out.', ephemeral: true });
     }
 
+    // Defer the reply so Discord knows we are working on it
     await interaction.deferReply();
     const query = interaction.options.getString('query');
 
@@ -374,7 +375,9 @@ client.on('interactionCreate', async interaction => {
       } else {
         // Search YouTube
         const searchResult = await play.search(query, { limit: 1 });
-        if (!searchResult.length) return interaction.editReply('No matching tracks discovered.');
+        if (!searchResult || !searchResult.length) {
+          return interaction.editReply('No matching tracks discovered.');
+        }
         songUrl = searchResult[0].url;
         songTitle = searchResult[0].title;
         durationSec = searchResult[0].durationInSec;
@@ -386,11 +389,13 @@ client.on('interactionCreate', async interaction => {
 
       const song = { title: songTitle, url: songUrl, requestedBy: interaction.user.id };
 
+      // Ensure voice connection is active and undeafened
       if (!queue.connection) {
         queue.connection = joinVoiceChannel({
           channelId: voiceChannel.id,
           guildId: voiceChannel.guild.id,
           adapterCreator: voiceChannel.guild.voiceAdapterCreator,
+          selfDeaf: false // Keep bot undeafened
         });
       }
 
@@ -404,8 +409,9 @@ client.on('interactionCreate', async interaction => {
       }
 
     } catch (e) {
-      console.error(e);
-      return interaction.editReply('Streaming service query resolution failure. Ensure URLs are valid.');
+      console.error("CRITICAL PLAY ERROR:", e);
+      // Fallback response so the bot doesn't get stuck "thinking"
+      return interaction.editReply(`Streaming service query resolution failure: ${e.message || e}`);
     }
   }
 
