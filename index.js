@@ -203,7 +203,7 @@ client.on('interactionCreate', async interaction => {
   }
 
   // Commands
-if (commandName === 'quote') {
+  if (commandName === 'quote') {
     await interaction.deferReply();
     try {
       const targetMessage = await interaction.channel.messages.fetch(interaction.options.getString('message_id'));
@@ -220,20 +220,13 @@ if (commandName === 'quote') {
         let fSz = startFont, spacing = fSz + 10, sY = 160, lines = [];
         while (fSz >= 14) {
           c.font = `${fSz}px "CustomArial"`; c.textAlign = 'center'; c.textBaseline = 'middle';
-          lines = [];
-          let currentLine = '';
-          
+          let testLine = ''; lines = [];
           for (let n = 0; n < words.length; n++) {
-            const testLine = currentLine ? `${currentLine} ${words[n]}` : words[n];
-            if (c.measureText(testLine).width > maxW) {
-              if (currentLine) lines.push(currentLine);
-              currentLine = words[n];
-            } else {
-              currentLine = testLine;
-            }
+            let testStr = testLine + words[n] + ' ';
+            if (c.measureText(testStr).width > maxW && n > 0) { lines.push(testLine.trim()); testLine = words[n] + ' '; }
+            else testLine = testStr;
           }
-          if (currentLine) lines.push(currentLine);
-
+          lines.push(testLine.trim());
           if (fSz === 32) { spacing = 42; sY = 160; } else if (fSz === 26) { spacing = 34; sY = 130; } else if (fSz === 20) { spacing = 26; sY = 100; } else { spacing = 18; sY = 60; }
           if (lines.length <= (fSz === 14 ? 14 : fSz === 20 ? 9 : fSz === 26 ? 6 : 4)) break;
           fSz = fSz === 32 ? 26 : fSz === 26 ? 20 : fSz === 20 ? 14 : 0;
@@ -241,7 +234,7 @@ if (commandName === 'quote') {
         return { lines, fontSize: fSz, lineSpacing: spacing, startY: sY };
       }
 
-      let layout = getQuoteLayout(ctx, targetMessage.content.split(/\s+/), 350, 32);
+      let layout = getQuoteLayout(ctx, targetMessage.content.split(' '), 350, 32);
       if (layout.lines.length > 14) { layout.lines = layout.lines.slice(0, 14); layout.lines[13] = layout.lines[13].replace(/[\s,.-]+$/, "") + "..."; }
 
       ctx.fillStyle = '#ffffff'; ctx.font = `${layout.fontSize}px "CustomArial"`;
@@ -252,8 +245,7 @@ if (commandName === 'quote') {
       ctx.fillStyle = '#555555'; ctx.font = 'italic 12px "CustomArial"'; ctx.textAlign = 'right'; ctx.fillText('Aidan Bot', 790, 390);
 
       return interaction.editReply({ files: [new AttachmentBuilder(canvas.toBuffer('image/png'), { name: `quote_${targetMessage.id}.png` })] });
-    } catch (e) { console.error(e); return interaction.editReply('Invalid layout reference target identifier.'); }
-  } return interaction.editReply('Invalid layout reference target identifier.'); }
+    } catch { return interaction.editReply('Invalid layout reference target identifier.'); }
   }
 
   if (commandName === 'level') {
