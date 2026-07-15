@@ -1,15 +1,13 @@
-JSON
 {
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
+    "builder": "NIXPACKS",
     "nixpacksPlan": {
       "phases": {
         "setup": {
-          "nixPkgs": [
-            "...",
-            "ffmpeg"
-          ]
+          "nixPkgs": ["nodejs", "ffmpeg"]
         }
       }
     }
   }
+}
