@@ -82,6 +82,9 @@ const commands = [
   { name: 'level', description: 'Check your level', options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'Check another citizen\'s level', required: false }] },
   { name: 'purge', description: 'Delete messages', options: [{ name: 'amount', type: ApplicationCommandOptionType.Integer, description: 'Amount (1-100)', required: true }] },
   { name: 'quote', description: 'Quote a message', options: [{ name: 'message_id', type: ApplicationCommandOptionType.String, description: 'The message ID', required: true }] },
+  { name: 'play', description: 'Play music in the main voice channel', options: [{ name: 'query', type: ApplicationCommandOptionType.String, description: 'YouTube/Spotify URL or search terms', required: true }] },
+  { name: 'queue', description: 'View the currently queued tracks' },
+  { name: 'stop', description: 'Stop music playback and disconnect the bot' },
   {
     name: 'mod', description: 'Staff moderation tools',
     options: [
@@ -266,7 +269,7 @@ client.on('interactionCreate', async interaction => {
     return interaction.editReply({ embeds: [new EmbedBuilder().setDescription(`Aidan Bot is online\n\nResponded within **${sent.createdTimestamp - interaction.createdTimestamp}ms**`).setColor('#2b2d31').setThumbnail(client.user.displayAvatarURL())] });
   }
 
-  if (commandName === 'dapup') {
+if (commandName === 'dapup') {
     const target = interaction.options.getUser('user');
     await getUserData(interaction.user.id);
     await pool.query('UPDATE users SET daps = daps + 1 WHERE user_id = $1', [interaction.user.id]);
@@ -274,6 +277,120 @@ client.on('interactionCreate', async interaction => {
   }
 
   if (commandName === 'say') return interaction.reply({ content: interaction.options.getString('message') });
+
+
+  if (commandName === 'play') {
+    const voiceChannel = interaction.member.voice.channel;
+    
+    if (!voiceChannel) {
+      return interaction.reply({ content: 'You must join a Voice Channel to play music.', ephemeral: true });
+    }
+
+    if (voiceChannel.id !== MAIN_VOICE_CHANNEL_ID) {
+      return interaction.reply({ content: `Aidan Bot is restricted to joining <#${MAIN_VOICE_CHANNEL_ID}> only.`, ephemeral: true });
+    }
+
+    const queue = getQueue(guildId);
+
+    const currentActiveSongsCount = queue.songs.length + (queue.currentSong ? 1 : 0);
+    if (currentActiveSongsCount >= 10) {
+      return interaction.reply({ content: 'The playback stream queue is full (**Max 10 tracks**). Wait for tracks to play out.', ephemeral: true });
+    }
+
+    await interaction.deferReply();
+    const query = interaction.options.getString('query');
+
+    try {
+      let songUrl = null;
+      let songTitle = 'Unknown Track';
+      let durationSec = 0;
+
+      if (play.yt_validate(query) === 'video') {
+        const info = await play.video_info(query);
+        songUrl = info.video_details.url;
+        songTitle = info.video_details.title;
+        durationSec = info.video_details.durationInSec;
+      } else {
+        // Search YouTube
+        const searchResult = await play.search(query, { limit: 1 });
+        if (!searchResult.length) return interaction.editReply('No matching tracks discovered.');
+        songUrl = searchResult[0].url;
+        songTitle = searchResult[0].title;
+        durationSec = searchResult[0].durationInSec;
+      }
+
+      if (durationSec > 900) {
+        return interaction.editReply('This track exceeds the 15-minute runtime threshold limit.');
+      }
+
+      const song = { title: songTitle, url: songUrl, requestedBy: user.id };
+
+      if (!queue.connection) {
+        queue.connection = joinVoiceChannel({
+          channelId: voiceChannel.id,
+          guildId: voiceChannel.guild.id,
+          adapterCreator: voiceChannel.guild.voiceAdapterCreator,
+        });
+      }
+
+      if (queue.currentSong) {
+        queue.songs.push(song);
+        return interaction.editReply({ embeds: [new EmbedBuilder().setDescription(`Added **${song.title}** to the queue.`).setColor('#2b2d31')] });
+      } else {
+        queue.songs.push(song);
+        await playNext(guildId);
+        return interaction.editReply({ embeds: [new EmbedBuilder().setDescription(`Now playing: **${song.title}**`).setColor('#2b2d31')] });
+      }
+
+    } catch (e) {
+      console.error(e);
+      return interaction.editReply('Streaming service query resolution failure. Ensure URLs are valid.');
+    }
+  }
+
+  if (commandName === 'queue') {
+    const queue = musicQueues.get(guildId);
+    if (!queue || (!queue.currentSong && queue.songs.length === 0)) {
+      return interaction.reply({ content: 'The playback queue is currently empty.', ephemeral: true });
+    }
+
+    const embed = new EmbedBuilder()
+      .setTitle('Aidansville Playback Queue')
+      .setColor('#2b2d31');
+
+    let desc = `**Now Playing:**\n ${queue.currentSong.title} (Requested by <@${queue.currentSong.requestedBy}>)\n\n`;
+
+    if (queue.songs.length > 0) {
+      desc += `**Up Next:**\n`;
+      queue.songs.forEach((song, idx) => {
+        desc += `\`${idx + 1}.\` ${song.title} (Requested by <@${song.requestedBy}>)\n`;
+      });
+    } else {
+      desc += '*No upcoming songs in the queue.*';
+    }
+
+    embed.setDescription(desc);
+    return interaction.reply({ embeds: [embed] });
+  }
+
+  if (commandName === 'stop') {
+    const queue = musicQueues.get(guildId);
+    const voiceChannel = interaction.member.voice.channel;
+
+    if (!queue || !queue.connection) {
+      return interaction.reply({ content: 'I am not currently connected to a Voice Channel.', ephemeral: true });
+    }
+    
+    if (!voiceChannel || voiceChannel.id !== queue.connection.joinConfig.channelId) {
+      return interaction.reply({ content: 'You must be in the bot\'s voice channel to stop playback.', ephemeral: true });
+    }
+
+    if (queue.player) queue.player.stop();
+    if (queue.connection) queue.connection.destroy();
+    musicQueues.delete(guildId);
+
+    return interaction.reply({ embeds: [new EmbedBuilder().setDescription('Playback terminated. Disconnecting from Voice Channel.').setColor('#2b2d31')] });
+  }
 });
 
 client.login(TOKEN);
