@@ -142,18 +142,18 @@ const cooldowns = new Collection(), xpCooldowns = new Set(), statuses = ["Made b
 
 // Application Commands Specification Map
 const commands = [
-  { name: 'ping', description: 'Checks the latency of Aidan Bot' },
-  { name: 'leaderboard', description: 'Display the Aidansville level leaderboard' },
-  { name: 'say', description: 'Make Aidan Bot say something', options: [{ name: 'message', type: ApplicationCommandOptionType.String, description: 'The text to repeat', required: true }] },
-  { name: 'dapup', description: 'Dap up a friend', options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'The user to dap', required: true }] },
-  { name: 'level', description: 'Check your level', options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'Check another citizen\'s level', required: false }] },
-  { name: 'purge', description: 'Delete messages', options: [{ name: 'amount', type: ApplicationCommandOptionType.Integer, description: 'Amount (1-100)', required: true }] },
-  { name: 'quote', description: 'Quote a message', options: [{ name: 'message_id', type: ApplicationCommandOptionType.String, description: 'The message ID', required: true }] },
-  { name: 'play', description: 'Play music in the main voice channel', options: [{ name: 'query', type: ApplicationCommandOptionType.String, description: 'YouTube/Spotify URL or search terms', required: true }] },
-  { name: 'queue', description: 'View the currently queued tracks' },
-  { name: 'stop', description: 'Stop music playback and disconnect the bot' },
+  { name: 'ping', description: 'Checks the latency of Aidan Bot', integration_types: [0, 1], contexts: [0, 1, 2] },
+  { name: 'leaderboard', description: 'Display the Aidansville level leaderboard', integration_types: [0, 1], contexts: [0, 1, 2] },
+  { name: 'say', description: 'Make Aidan Bot say something', options: [{ name: 'message', type: ApplicationCommandOptionType.String, description: 'The text to repeat', required: true }], integration_types: [0, 1], contexts: [0, 1, 2] },
+  { name: 'dapup', description: 'Dap up a friend', options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'The user to dap', required: true }], integration_types: [0, 1], contexts: [0, 1, 2] },
+  { name: 'level', description: 'Check your level', options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'Check another citizen\'s level', required: false }], integration_types: [0, 1], contexts: [0, 1, 2] },
+  { name: 'purge', description: 'Delete messages', options: [{ name: 'amount', type: ApplicationCommandOptionType.Integer, description: 'Amount (1-100)', required: true }], integration_types: [0], contexts: [0] },
+  { name: 'quote', description: 'Quote a message', options: [{ name: 'message_id', type: ApplicationCommandOptionType.String, description: 'The message ID', required: true }], integration_types: [0, 1], contexts: [0, 1, 2] },
+  { name: 'play', description: 'Play music in the main voice channel', options: [{ name: 'query', type: ApplicationCommandOptionType.String, description: 'YouTube/Spotify URL or search terms', required: true }], integration_types: [0], contexts: [0] },
+  { name: 'queue', description: 'View the currently queued tracks', integration_types: [0], contexts: [0] },
+  { name: 'stop', description: 'Stop music playback and disconnect the bot', integration_types: [0], contexts: [0] },
   {
-    name: 'mod', description: 'Staff moderation tools',
+    name: 'mod', description: 'Staff moderation tools', integration_types: [0], contexts: [0],
     options: [
       { name: 'warn', description: 'Warn a citizen', type: ApplicationCommandOptionType.Subcommand, options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'User', required: true }, { name: 'reason', type: ApplicationCommandOptionType.String, description: 'Reason', required: true }] },
       { name: 'timeout', description: 'Timeout a citizen', type: ApplicationCommandOptionType.Subcommand, options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'User', required: true }, { name: 'duration', type: ApplicationCommandOptionType.Integer, description: 'Minutes', required: true }, { name: 'reason', type: ApplicationCommandOptionType.String, description: 'Reason', required: true }] },
