@@ -51,7 +51,14 @@ app.listen(PORT);
 
 let TOKEN = process.env.TOKEN, CLIENT_ID = process.env.CLIENT_ID, DATABASE_URL = process.env.DATABASE_URL;
 if (!TOKEN || !CLIENT_ID || !DATABASE_URL) {
-  try { const config = require('./config.json'); TOKEN ||= config.TOKEN; CLIENT_ID ||= config.CLIENT_ID; DATABASE_URL ||= config.DATABASE_URL; } catch { console.log("ℹ️ Running via environment variables."); }
+  try { 
+    const config = require('./config.json'); 
+    TOKEN ||= config.TOKEN; 
+    CLIENT_ID ||= config.CLIENT_ID; 
+    DATABASE_URL ||= config.DATABASE_URL; 
+  } catch { 
+    console.log("ℹ️ Running via environment variables."); 
+  }
 }
 
 // Global Music Configuration & Channel Constraints
@@ -89,12 +96,12 @@ async function playNext(guildId) {
       queue.connection.subscribe(queue.player);
 
       queue.player.on(AudioPlayerStatus.Idle, () => {
-        playNext(guildId);
+        playNext(guildId).catch(err => console.error('Error in playNext transition:', err));
       });
 
       queue.player.on('error', error => {
         console.error('Audio Player Error:', error);
-        playNext(guildId);
+        playNext(guildId).catch(err => console.error('Error recovering from player crash:', err));
       });
     }
 
@@ -107,7 +114,7 @@ async function playNext(guildId) {
 
   } catch (error) {
     console.error('Error starting playback:', error);
-    playNext(guildId);
+    playNext(guildId).catch(err => console.error('Error bypassing dead track:', err));
   }
 }
 
@@ -338,11 +345,10 @@ client.on('interactionCreate', async interaction => {
 
   if (commandName === 'say') return interaction.reply({ content: interaction.options.getString('message') });
 
-  // ================= MUSIC COMMAND LOGIC =================
+  if (commandName === 'play') {
+    if (!guildId) return; // 
 
-if (commandName === 'play') {
-    const voiceChannel = interaction.member.voice.channel;
-    
+    const voiceChannel = interaction.member?.voice?.channel;
     if (!voiceChannel) {
       return interaction.reply({ content: 'You must join a Voice Channel to play music.', ephemeral: true });
     }
@@ -352,15 +358,12 @@ if (commandName === 'play') {
     }
 
     const queue = getQueue(guildId);
-
     const currentActiveSongsCount = queue.songs.length + (queue.currentSong ? 1 : 0);
     if (currentActiveSongsCount >= 10) {
       return interaction.reply({ content: 'The playback stream queue is full (**Max 10 tracks**). Wait for tracks to play out.', ephemeral: true });
     }
 
     const query = interaction.options.getString('query');
-
-    // Regex to validate that the link is strictly from YouTube, Spotify, or SoundCloud
     const allowedLinkRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be|spotify\.com|soundcloud\.com)\/.+$/i;
 
     if (!allowedLinkRegex.test(query)) {
@@ -370,7 +373,6 @@ if (commandName === 'play') {
       });
     }
 
-    // Defer reply once we know the link is valid
     await interaction.deferReply();
 
     try {
@@ -382,17 +384,18 @@ if (commandName === 'play') {
       if (play.yt_validate(query) === 'video') {
         const info = await play.video_info(query);
         songUrl = info.video_details.url;
-        songTitle = info.video_details.title;
+        songTitle = info.video_details.title || 'Unknown Video';
         durationSec = info.video_details.durationInSec;
       } 
-      // Handle Spotify links (play-dl can convert these to YouTube searches internally)
+      // Handle Spotify links
       else if (play.sp_validate(query)) {
         if (play.is_expired()) {
-          await play.refreshToken(); // Ensure Spotify API tokens are fresh
+          await play.refreshToken();
         }
         const spotifyData = await play.spotify(query);
         if (spotifyData.type === 'track') {
-          const searchResult = await play.search(`${spotifyData.name} ${spotifyData.artists[0].name}`, { limit: 1 });
+          const artistName = spotifyData.artists?.[0]?.name || 'Unknown Artist';
+          const searchResult = await play.search(`${spotifyData.name} ${artistName}`, { limit: 1 });
           if (!searchResult || !searchResult.length) {
             return interaction.editReply('Could not find a matching YouTube track for this Spotify song.');
           }
@@ -408,7 +411,7 @@ if (commandName === 'play') {
         const soundcloudData = await play.soundcloud(query);
         songUrl = soundcloudData.url;
         songTitle = soundcloudData.name;
-        durationSec = Math.floor(soundcloudData.duration / 1000); // Converts milliseconds to seconds
+        durationSec = Math.floor((soundcloudData.duration || 0) / 1000);
       } else {
         return interaction.editReply('Invalid platform link structure or unsupported URL type.');
       }
@@ -417,9 +420,10 @@ if (commandName === 'play') {
         return interaction.editReply('This track exceeds the 15-minute runtime threshold limit.');
       }
 
+      if (!songUrl) return interaction.editReply('Unable to resolve a streamable URL.');
+
       const song = { title: songTitle, url: songUrl, requestedBy: interaction.user.id };
 
-      // Ensure voice connection is active and undeafened
       if (!queue.connection) {
         queue.connection = joinVoiceChannel({
           channelId: voiceChannel.id,
@@ -434,7 +438,7 @@ if (commandName === 'play') {
         return interaction.editReply({ embeds: [new EmbedBuilder().setDescription(`Added **${song.title}** to the queue.`).setColor('#2b2d31')] });
       } else {
         queue.songs.push(song);
-        await playNext(guildId);
+        playNext(guildId).catch(err => console.error("Asynchronous playNext queue loop error:", err));
         return interaction.editReply({ embeds: [new EmbedBuilder().setDescription(`Now playing: **${song.title}**`).setColor('#2b2d31')] });
       }
 
@@ -445,6 +449,8 @@ if (commandName === 'play') {
   }
 
   if (commandName === 'queue') {
+    if (!guildId) return;
+
     const queue = musicQueues.get(guildId);
     if (!queue || (!queue.currentSong && queue.songs.length === 0)) {
       return interaction.reply({ content: 'The playback queue is currently empty.', ephemeral: true });
@@ -454,7 +460,7 @@ if (commandName === 'play') {
       .setTitle('Aidansville Playback Queue')
       .setColor('#2b2d31');
 
-    let desc = `**Now Playing:**\n🎶 ${queue.currentSong.title} (Requested by <@${queue.currentSong.requestedBy}>)\n\n`;
+    let desc = `**Now Playing:**\n🎶 ${queue.currentSong?.title || 'Loading Track...'} (Requested by <@${queue.currentSong?.requestedBy || 'Unknown User'}>)\n\n`;
 
     if (queue.songs.length > 0) {
       desc += `**Up Next:**\n`;
@@ -470,8 +476,10 @@ if (commandName === 'play') {
   }
 
   if (commandName === 'stop') {
+    if (!guildId) return;
+
     const queue = musicQueues.get(guildId);
-    const voiceChannel = interaction.member.voice.channel;
+    const voiceChannel = interaction.member?.voice?.channel;
 
     if (!queue || !queue.connection) {
       return interaction.reply({ content: 'I am not currently connected to a Voice Channel.', ephemeral: true });
@@ -489,7 +497,6 @@ if (commandName === 'play') {
   }
 });
 
-// Auto-disconnect when the voice channel becomes empty of humans
 client.on('voiceStateUpdate', async (oldState, newState) => {
   const queue = musicQueues.get(oldState.guild.id);
   if (!queue || !queue.connection) return;
