@@ -340,7 +340,7 @@ client.on('interactionCreate', async interaction => {
     const target = interaction.options.getUser('user');
     await getUserData(interaction.user.id);
     await pool.query('UPDATE users SET daps = daps + 1 WHERE user_id = $1', [interaction.user.id]);
-    return interaction.reply({ embeds: [new EmbedBuilder().setDescription(`<@${interaction.user.id}> dapped up <@${target.id}>`).setColor('#2b2d31').setImage('https://media3.giphy.com/media/v1.Y2lkPTZjMDliOTUyeHJnbWZrZm5wOXpzY2x2aWF2b3U0OWloZ2FxcThrOWhja2IzM3NsbCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/zSt9sNWYqGQb6gKCak/giphy.gif')] });
+    return interaction.reply({ embeds: [new EmbedBuilder().setDescription(`<@${interaction.user.id}> dapped up <@${target.id}>`).setColor('#2b2d31').setImage('https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExYTh1OGJ0eXB4MDNiYTJ0OGN0bzlyMDRneW5vM2J4b2xlaDN6NHA1NiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/zSt9sNWYqGQb6gKCak/giphy.gif')] });
   }
 
   if (commandName === 'say') return interaction.reply({ content: interaction.options.getString('message') });
