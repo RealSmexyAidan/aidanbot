@@ -148,7 +148,7 @@ const commands = [
   { name: 'dapup', description: 'Dap up a friend', options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'The user to dap', required: true }], integration_types: [0, 1], contexts: [0, 1, 2] },
   { name: 'level', description: 'Check your level', options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'Check another citizen\'s level', required: false }], integration_types: [0, 1], contexts: [0, 1, 2] },
   { name: 'purge', description: 'Delete messages', options: [{ name: 'amount', type: ApplicationCommandOptionType.Integer, description: 'Amount (1-100)', required: true }], integration_types: [0], contexts: [0] },
-  { name: 'quote', description: 'Quote a message', options: [{ name: 'message_id', type: ApplicationCommandOptionType.String, description: 'The message ID', required: false }], integration_types: [0, 1], contexts: [0, 1, 2] },
+  { name: 'quote', description: 'Quote a message', options: [{ name: 'message_id', type: ApplicationCommandOptionType.String, description: 'The message ID', required: true }], integration_types: [0, 1], contexts: [0, 1, 2] },
   {
     name: 'mod', description: 'Staff moderation tools', integration_types: [0], contexts: [0],
     options: [
@@ -270,26 +270,11 @@ client.on('interactionCreate', async interaction => {
   }
 
 // Commands
-if (commandName === 'quote') {
+  if (commandName === 'quote') {
     await interaction.deferReply();
     try {
-      let targetMessage;
-      const inputId = interaction.options.getString('message_id');
-
-      // Check if the user ran the slash command while replying to a message
-      const targetMessageId = interaction.reference?.messageId || interaction.options.context?.messageId;
-
-      if (targetMessageId) {
-        targetMessage = await interaction.channel.messages.fetch(targetMessageId);
-      } 
-      else if (inputId) {
-        targetMessage = await interaction.channel.messages.fetch(inputId);
-      } 
-      else {
-        return interaction.editReply('Please run this command by **replying** to the message you want to quote, or provide a message ID!');
-      }
-
-      if (!targetMessage || !targetMessage.content) return interaction.editReply('Empty payload asset string.');
+      const targetMessage = await interaction.channel.messages.fetch(interaction.options.getString('message_id'));
+      if (!targetMessage.content) return interaction.editReply('Empty payload asset string.');
 
       const canvas = createCanvas(800, 400), ctx = canvas.getContext('2d');
       ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, 800, 400);
@@ -327,15 +312,9 @@ if (commandName === 'quote') {
       ctx.fillStyle = '#555555'; ctx.font = 'italic 12px "CustomArial"'; ctx.textAlign = 'right'; ctx.fillText('Aidan Bot', 790, 390);
 
       return interaction.editReply({ files: [new AttachmentBuilder(canvas.toBuffer('image/png'), { name: `quote_${targetMessage.id}.png` })] });
-    } catch (error) { 
+    } catch { 
       return interaction.editReply('Invalid layout reference target identifier.'); 
     }
-  }
-
-  if (commandName === 'level') {
-    const target = interaction.options.getUser('user') || user, uData = await getUserData(target.id), reqXp = (uData.level * 50) + 50;
-    const rank = (await pool.query('SELECT user_id FROM users ORDER BY level DESC, xp DESC')).rows.findIndex(p => p.user_id === target.id) + 1 || 'Unranked';
-    return interaction.reply({ embeds: [new EmbedBuilder().setAuthor({ name: target.username, iconURL: target.displayAvatarURL() }).addFields({ name: 'Rank', value: `#${rank}`, inline: true }, { name: 'Level', value: `${uData.level}`, inline: true }, { name: 'XP Progress', value: `${uData.xp} / ${reqXp} XP`, inline: true }).setColor('#2b2d31')] });
   }
 
   if (commandName === 'level') {
