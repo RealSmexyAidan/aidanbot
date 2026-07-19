@@ -316,12 +316,13 @@ if (commandName === 'level') {
       .setDescription(
         `• **Rank:** #${rank}\n` +
         `• **Level:** ${uData.level}\n` +
-        `• **Progress:** ${uData.xp} / ${reqXp} XP\n\n` +
-        `${progressBarText}`
+        `• **XP:** ${uData.xp} / ${reqXp} XP`
+      )
+      .setColor('#2b2d31')
+      .setFooter({ text: 'Aidan Bot' });
 
     return interaction.editReply({ embeds: [embed] });
   }
-
   if (commandName === 'leaderboard') {
     const [lvlRes, dapsRes] = await Promise.all([
       pool.query('SELECT * FROM users ORDER BY level DESC, xp DESC LIMIT 10'),
