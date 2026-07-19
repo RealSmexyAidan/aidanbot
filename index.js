@@ -400,17 +400,29 @@ if (commandName === 'dapup') {
 
     const TOP_DAP_ROLE_ID = '1528292630419738744';
     try {
+      // 1. Fetch the absolute top leader from the DB
       const topLeaderRes = await pool.query('SELECT user_id FROM users ORDER BY daps DESC, level DESC LIMIT 1');
+      
       if (topLeaderRes.rows.length > 0 && topLeaderRes.rows[0].user_id === interaction.user.id) {
-        const role = interaction.guild.roles.cache.get(TOP_DAP_ROLE_ID);
+        const role = await interaction.guild.roles.fetch(TOP_DAP_ROLE_ID);
         if (role) {
+          await interaction.guild.members.fetch(); 
+          
           const currentHolder = role.members.first();
-          if (currentHolder && currentHolder.id !== interaction.user.id) await currentHolder.roles.remove(role);
+          
+          // Remove the role from the old king if it's someone else
+          if (currentHolder && currentHolder.id !== interaction.user.id) {
+            await currentHolder.roles.remove(role);
+          }
+          
+          // Give it to the new king
           const member = await interaction.guild.members.fetch(interaction.user.id);
-          if (!member.roles.cache.has(TOP_DAP_ROLE_ID)) await member.roles.add(role);
+          if (!member.roles.cache.has(TOP_DAP_ROLE_ID)) {
+            await member.roles.add(role);
+          }
         }
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error("Error swapping Top Dap role:", e); }
 
     return interaction.reply({ 
       embeds: [new EmbedBuilder().setDescription(`<@${interaction.user.id}> dapped up <@${target.id}>!`).setColor('#2b2d31').setImage('https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExYTh1OGJ0eXB4MDNiYTJ0OGN0bzlyMDRneW5vM2J4b2xlaDN6NHA1NiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/zSt9sNWYqGQb6gKCak/giphy.gif')] 
