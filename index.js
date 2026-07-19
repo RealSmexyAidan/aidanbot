@@ -314,15 +314,15 @@ if (commandName === 'level') {
     const embed = new EmbedBuilder()
       .setAuthor({ name: target.username, iconURL: target.displayAvatarURL({ dynamic: true }) })
       .setDescription(
-        `• **Rank:** #${rank}\n` +
-        `• **Level:** ${uData.level}\n` +
-        `• **XP:** ${uData.xp} / ${reqXp} XP`
+        `**Rank:** #${rank}\n` +
+        `**Level:** ${uData.level}\n` +
+        `**XP:** ${uData.xp} / ${reqXp} XP`
       )
-      .setColor('#2b2d31')
-      .setFooter({ text: 'Aidan Bot' });
+      .setColor('#2b2d31');
 
     return interaction.editReply({ embeds: [embed] });
   }
+  
   if (commandName === 'leaderboard') {
     const [lvlRes, dapsRes] = await Promise.all([
       pool.query('SELECT * FROM users ORDER BY level DESC, xp DESC LIMIT 10'),
