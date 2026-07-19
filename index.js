@@ -57,10 +57,20 @@ if (!TOKEN || !CLIENT_ID || !DATABASE_URL) {
 
 // Database Utilities
 const pool = new Pool({ connectionString: DATABASE_URL, ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false });
-const initDb = () => pool.query('CREATE TABLE IF NOT EXISTS users (user_id VARCHAR(20) PRIMARY KEY, xp INTEGER DEFAULT 0, level INTEGER DEFAULT 0, daps INTEGER DEFAULT 0)');
+const initDb = () => pool.query(`
+  CREATE TABLE IF NOT EXISTS users (
+    user_id VARCHAR(20) PRIMARY KEY, 
+    xp INTEGER DEFAULT 0, 
+    level INTEGER DEFAULT 0, 
+    daps INTEGER DEFAULT 0,
+    dap_streak INTEGER DEFAULT 0,
+    last_dap_time BIGINT DEFAULT 0
+  )
+`);
+
 async function getUserData(userId) {
   const res = await pool.query('SELECT * FROM users WHERE user_id = $1', [userId]);
-  return res.rows[0] || (await pool.query('INSERT INTO users (user_id, xp, level, daps) VALUES ($1, 0, 0, 0) RETURNING *', [userId])).rows[0];
+  return res.rows[0] || (await pool.query('INSERT INTO users (user_id, xp, level, daps, dap_streak, last_dap_time) VALUES ($1, 0, 0, 0, 0, 0) RETURNING *', [userId])).rows[0];
 }
 
 const client = new Client({ 
@@ -77,6 +87,8 @@ const commands = [
   { name: 'dapup', description: 'Dap up a friend', options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'The user to dap', required: true }], integration_types: [0, 1], contexts: [0, 1, 2] },
   { name: 'level', description: 'Check your level', options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'Check another citizen\'s level', required: false }], integration_types: [0, 1], contexts: [0, 1, 2] },
   { name: 'quote', description: 'Quote a message', options: [{ name: 'message_id', type: ApplicationCommandOptionType.String, description: 'The message ID', required: true }], integration_types: [0, 1], contexts: [0, 1, 2] },
+  { name: 'userinfo', description: 'Displays structured profile statistics for a user', options: [{ name: 'target', type: ApplicationCommandOptionType.User, description: 'The user to examine', required: false }], integration_types: [0], contexts: [0] },
+  { name: 'serverinfo', description: 'Displays information about this server', integration_types: [0], contexts: [0] },
   {
     name: 'mod', description: 'Staff moderation tools', integration_types: [0], contexts: [0],
     options: [
@@ -291,13 +303,50 @@ client.on('interactionCreate', async interaction => {
     } catch { return interaction.editReply('Invalid layout reference target identifier.'); }
   }
 
-  if (commandName === 'level') {
-    const target = interaction.options.getUser('user') || user, uData = await getUserData(target.id), reqXp = (uData.level * 50) + 50;
-    const rank = (await pool.query('SELECT user_id FROM users ORDER BY level DESC, xp DESC')).rows.findIndex(p => p.user_id === target.id) + 1 || 'Unranked';
-    return interaction.reply({ embeds: [new EmbedBuilder().setAuthor({ name: target.username, iconURL: target.displayAvatarURL() }).addFields({ name: 'Rank', value: `#${rank}`, inline: true }, { name: 'Level', value: `${uData.level}`, inline: true }, { name: 'XP Progress', value: `${uData.xp} / ${reqXp} XP`, inline: true }).setColor('#2b2d31')] });
+ if (commandName === 'level') {
+    await interaction.deferReply();
+    const target = interaction.options.getUser('user') || user;
+    const uData = await getUserData(target.id);
+    const reqXp = (uData.level * 50) + 50;
+    
+    const rank = (await pool.query('SELECT user_id FROM users ORDER BY level DESC, xp DESC')).rows.findIndex(p => p.user_id === target.id) + 1 || '??';
+
+    const canvas = createCanvas(700, 200), ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#1e1f22'; ctx.fillRect(0, 0, 700, 200);
+    ctx.fillStyle = '#2b2d31'; ctx.roundRect(20, 20, 660, 160, 15); ctx.fill();
+
+    ctx.save(); ctx.beginPath(); ctx.arc(95, 100, 55, 0, Math.PI * 2); ctx.closePath(); ctx.clip();
+    try { ctx.drawImage(await loadImage(target.displayAvatarURL({ extension: 'png', size: 256 })), 40, 45, 110, 110); } catch {}
+    ctx.restore();
+
+    ctx.fillStyle = '#ffffff'; ctx.font = 'bold 28px "CustomArial"'; ctx.textAlign = 'left';
+    ctx.fillText(target.username, 180, 75);
+
+    ctx.fillStyle = '#b5bac1'; ctx.font = '20px "CustomArial"';
+    ctx.fillText(`Rank #${rank}`, 180, 115);
+    ctx.textAlign = 'right';
+    ctx.fillText(`Level ${uData.level}`, 650, 75);
+    ctx.fillText(`${uData.xp} / ${reqXp} XP`, 650, 115);
+
+    const progressWidth = 470, barX = 180, barY = 135, barHeight = 20;
+    ctx.fillStyle = '#1e1f22'; ctx.roundRect(barX, barY, progressWidth, barHeight, 10); ctx.fill();
+    
+    const fillPercent = Math.min(uData.xp / reqXp, 1);
+    if (fillPercent > 0) {
+      ctx.fillStyle = '#5865f2';
+      ctx.roundRect(barX, barY, progressWidth * fillPercent, barHeight, 10); ctx.fill();
+    }
+
+    // Identical Watermark positioning adjusted for the 700x200 canvas size
+    ctx.fillStyle = '#555555'; 
+    ctx.font = 'italic 12px "CustomArial"'; 
+    ctx.textAlign = 'right'; 
+    ctx.fillText('Aidan Bot', 690, 190);
+
+    return interaction.editReply({ files: [new AttachmentBuilder(canvas.toBuffer('image/png'), { name: `level_${target.id}.png` })] });
   }
 
-if (commandName === 'leaderboard') {
+  if (commandName === 'leaderboard') {
     const [lvlRes, dapsRes] = await Promise.all([
       pool.query('SELECT * FROM users ORDER BY level DESC, xp DESC LIMIT 10'),
       pool.query('SELECT * FROM users ORDER BY daps DESC, level DESC LIMIT 10')
@@ -324,7 +373,6 @@ if (commandName === 'leaderboard') {
     );
 
     const reply = await interaction.reply({ embeds: [makeEmbed('level')], components: [getRow('level')], fetchReply: true });
-
     const collector = reply.createMessageComponentCollector({ filter: i => i.user.id === interaction.user.id, time: 60000 });
 
     collector.on('collect', async i => {
@@ -333,7 +381,6 @@ if (commandName === 'leaderboard') {
     });
 
     collector.on('end', () => {
-
       interaction.editReply({ components: [] }).catch(() => null);
     });
     return;
@@ -344,11 +391,67 @@ if (commandName === 'leaderboard') {
     return interaction.editReply({ embeds: [new EmbedBuilder().setDescription(`Aidan Bot is online\n\nResponded within **${sent.createdTimestamp - interaction.createdTimestamp}ms**`).setColor('#2b2d31').setThumbnail(client.user.displayAvatarURL())] });
   }
 
-  if (commandName === 'dapup') {
+if (commandName === 'dapup') {
     const target = interaction.options.getUser('user');
+    if (target.id === interaction.user.id) return interaction.reply({ content: "You can't dap yourself up!", ephemeral: true });
+
     await getUserData(interaction.user.id);
     await pool.query('UPDATE users SET daps = daps + 1 WHERE user_id = $1', [interaction.user.id]);
-    return interaction.reply({ embeds: [new EmbedBuilder().setDescription(`<@${interaction.user.id}> dapped up <@${target.id}>`).setColor('#2b2d31').setImage('https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExYTh1OGJ0eXB4MDNiYTJ0OGN0bzlyMDRneW5vM2J4b2xlaDN6NHA1NiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/zSt9sNWYqGQb6gKCak/giphy.gif')] });
+
+    const TOP_DAP_ROLE_ID = '1528292630419738744';
+    try {
+      const topLeaderRes = await pool.query('SELECT user_id FROM users ORDER BY daps DESC, level DESC LIMIT 1');
+      if (topLeaderRes.rows.length > 0 && topLeaderRes.rows[0].user_id === interaction.user.id) {
+        const role = interaction.guild.roles.cache.get(TOP_DAP_ROLE_ID);
+        if (role) {
+          const currentHolder = role.members.first();
+          if (currentHolder && currentHolder.id !== interaction.user.id) await currentHolder.roles.remove(role);
+          const member = await interaction.guild.members.fetch(interaction.user.id);
+          if (!member.roles.cache.has(TOP_DAP_ROLE_ID)) await member.roles.add(role);
+        }
+      }
+    } catch (e) { console.error(e); }
+
+    return interaction.reply({ 
+      embeds: [new EmbedBuilder().setDescription(`<@${interaction.user.id}> dapped up <@${target.id}>!`).setColor('#2b2d31').setImage('https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExYTh1OGJ0eXB4MDNiYTJ0OGN0bzlyMDRneW5vM2J4b2xlaDN6NHA1NiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/zSt9sNWYqGQb6gKCak/giphy.gif')] 
+    });
+  }
+
+  // Identity Statistics System Commands
+  if (commandName === 'userinfo') {
+    const targetUser = interaction.options.getUser('target') || interaction.user;
+    const member = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+    
+    const embed = new EmbedBuilder()
+      .setAuthor({ name: targetUser.tag, iconURL: targetUser.displayAvatarURL() })
+      .setThumbnail(targetUser.displayAvatarURL({ dynamic: true }))
+      .setColor('#2b2d31')
+      .addFields(
+        { name: 'Account ID', value: `\`${targetUser.id}\``, inline: true },
+        { name: 'Created On', value: `<t:${Math.floor(targetUser.createdTimestamp / 1000)}:F>`, inline: false }
+      );
+
+    if (member) {
+      embed.addFields(
+        { name: 'Joined Server', value: `<t:${Math.floor(member.joinedTimestamp / 1000)}:F>`, inline: false },
+      );
+    }
+    return interaction.reply({ embeds: [embed] });
+  }
+
+  if (commandName === 'serverinfo') {
+    const { guild } = interaction;
+    const embed = new EmbedBuilder()
+      .setTitle(guild.name)
+      .setThumbnail(guild.iconURL({ dynamic: true }))
+      .setColor('#2b2d31')
+      .addFields(
+        { name: 'Server Owner', value: `<@${guild.ownerId}>`, inline: true },
+        { name: 'Total Citizens', value: `**${guild.memberCount}**`, inline: true },
+        { name: 'Boosts', value: `**${guild.premiumSubscriptionCount || 0}** Boosts`, inline: true },
+        { name: 'Created On', value: `<t:${Math.floor(guild.createdTimestamp / 1000)}:F>`, inline: false }
+      );
+    return interaction.reply({ embeds: [embed] });
   }
 
   if (commandName === 'say') return interaction.reply({ content: interaction.options.getString('message') });
