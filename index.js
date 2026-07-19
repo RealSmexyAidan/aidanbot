@@ -34,12 +34,10 @@
 // ==============================================================================
 
 const { createCanvas, loadImage, GlobalFonts } = require('@napi-rs/canvas');
-const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ApplicationCommandOptionType, Collection, ActivityType, Partials, AttachmentBuilder } = require('discord.js');
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
+const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ApplicationCommandOptionType, Collection, ActivityType, Partials, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const express = require('express');
 const { Pool } = require('pg');
 const path = require('path');
-const play = require('play-dl');
 
 GlobalFonts.registerFromPath(path.join(__dirname, 'ARIAL.TTF'), 'CustomArial');
 
@@ -53,89 +51,20 @@ let TOKEN = process.env.TOKEN, CLIENT_ID = process.env.CLIENT_ID, DATABASE_URL =
 if (!TOKEN || !CLIENT_ID || !DATABASE_URL) {
   try { 
     const config = require('./config.json'); 
-    TOKEN ||= config.TOKEN; 
-    CLIENT_ID ||= config.CLIENT_ID; 
-    DATABASE_URL ||= config.DATABASE_URL; 
-  } catch { 
-    console.log("ℹ️ Running via environment variables."); 
-  }
-}
-
-// Global Music Configuration & Channel Constraints
-const MAIN_VOICE_CHANNEL_ID = '1445952337100280009';
-const musicQueues = new Map();
-
-function getQueue(guildId) {
-  if (!musicQueues.has(guildId)) {
-    musicQueues.set(guildId, {
-      connection: null,
-      player: null,
-      currentSong: null,
-      songs: []
-    });
-  }
-  return musicQueues.get(guildId);
-}
-
-// Core Streaming & Audio Playback Logic
-async function playNext(guildId) {
-  const queue = musicQueues.get(guildId);
-  if (!queue || queue.songs.length === 0) {
-    if (queue && queue.connection) {
-      queue.connection.destroy();
-      musicQueues.delete(guildId);
-    }
-    return;
-  }
-
-  queue.currentSong = queue.songs.shift();
-
-  try {
-    if (!queue.player) {
-      queue.player = createAudioPlayer();
-      queue.connection.subscribe(queue.player);
-
-      queue.player.on(AudioPlayerStatus.Idle, () => {
-        playNext(guildId).catch(err => console.error('Error in playNext transition:', err));
-      });
-
-      queue.player.on('error', error => {
-        console.error('Audio Player Error:', error);
-        playNext(guildId).catch(err => console.error('Error recovering from player crash:', err));
-      });
-    }
-
-    const stream = await play.stream(queue.currentSong.url);
-    const resource = createAudioResource(stream.stream, {
-      inputType: stream.type
-    });
-
-    queue.player.play(resource);
-
-  } catch (error) {
-    console.error('Error starting playback:', error);
-    playNext(guildId).catch(err => console.error('Error bypassing dead track:', err));
-  }
+    TOKEN ||= config.TOKEN; CLIENT_ID ||= config.CLIENT_ID; DATABASE_URL ||= config.DATABASE_URL; 
+  } catch { console.log("ℹ️ Running via environment variables."); }
 }
 
 // Database Utilities
 const pool = new Pool({ connectionString: DATABASE_URL, ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false });
-async function initDb() {
-  await pool.query('CREATE TABLE IF NOT EXISTS users (user_id VARCHAR(20) PRIMARY KEY, xp INTEGER DEFAULT 0, level INTEGER DEFAULT 0, daps INTEGER DEFAULT 0)');
-}
-
+const initDb = () => pool.query('CREATE TABLE IF NOT EXISTS users (user_id VARCHAR(20) PRIMARY KEY, xp INTEGER DEFAULT 0, level INTEGER DEFAULT 0, daps INTEGER DEFAULT 0)');
 async function getUserData(userId) {
   const res = await pool.query('SELECT * FROM users WHERE user_id = $1', [userId]);
-  if (res.rows.length === 0) {
-    const insertRes = await pool.query('INSERT INTO users (user_id, xp, level, daps) VALUES ($1, 0, 0, 0) RETURNING *', [userId]);
-    return insertRes.rows[0];
-  }
-  return res.rows[0];
+  return res.rows[0] || (await pool.query('INSERT INTO users (user_id, xp, level, daps) VALUES ($1, 0, 0, 0) RETURNING *', [userId])).rows[0];
 }
 
-// Client Configuration
 const client = new Client({ 
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.GuildVoiceStates],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMessageReactions],
   partials: [Partials.Message, Partials.Channel, Partials.Reaction]
 });
 const cooldowns = new Collection(), xpCooldowns = new Set(), statuses = ["Made by Aidan", "Watching Aidansville"];
@@ -143,15 +72,16 @@ const cooldowns = new Collection(), xpCooldowns = new Set(), statuses = ["Made b
 // Application Commands Specification Map
 const commands = [
   { name: 'ping', description: 'Checks the latency of Aidan Bot', integration_types: [0, 1], contexts: [0, 1, 2] },
-  { name: 'leaderboard', description: 'Display the Aidansville level leaderboard', integration_types: [0, 1], contexts: [0, 1, 2] },
+  { name: 'leaderboard', description: 'Display the Aidansville level and daps leaderboard', integration_types: [0, 1], contexts: [0, 1, 2] },
   { name: 'say', description: 'Make Aidan Bot say something', options: [{ name: 'message', type: ApplicationCommandOptionType.String, description: 'The text to repeat', required: true }], integration_types: [0, 1], contexts: [0, 1, 2] },
   { name: 'dapup', description: 'Dap up a friend', options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'The user to dap', required: true }], integration_types: [0, 1], contexts: [0, 1, 2] },
   { name: 'level', description: 'Check your level', options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'Check another citizen\'s level', required: false }], integration_types: [0, 1], contexts: [0, 1, 2] },
-  { name: 'purge', description: 'Delete messages', options: [{ name: 'amount', type: ApplicationCommandOptionType.Integer, description: 'Amount (1-100)', required: true }], integration_types: [0], contexts: [0] },
   { name: 'quote', description: 'Quote a message', options: [{ name: 'message_id', type: ApplicationCommandOptionType.String, description: 'The message ID', required: true }], integration_types: [0, 1], contexts: [0, 1, 2] },
   {
     name: 'mod', description: 'Staff moderation tools', integration_types: [0], contexts: [0],
     options: [
+      { name: 'purge', description: 'Delete messages', type: ApplicationCommandOptionType.Subcommand, options: [{ name: 'amount', type: ApplicationCommandOptionType.Integer, description: 'Amount (1-100)', required: true }] },
+      { name: 'slowmode', description: 'Set channel text cooldown constraint rules', type: ApplicationCommandOptionType.Subcommand, options: [{ name: 'seconds', type: ApplicationCommandOptionType.Integer, description: 'Cooldown in seconds (0 to disable)', required: true }] },
       { name: 'warn', description: 'Warn a citizen', type: ApplicationCommandOptionType.Subcommand, options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'User', required: true }, { name: 'reason', type: ApplicationCommandOptionType.String, description: 'Reason', required: true }] },
       { name: 'timeout', description: 'Timeout a citizen', type: ApplicationCommandOptionType.Subcommand, options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'User', required: true }, { name: 'duration', type: ApplicationCommandOptionType.Integer, description: 'Minutes', required: true }, { name: 'reason', type: ApplicationCommandOptionType.String, description: 'Reason', required: true }] },
       { name: 'ban', description: 'Ban a citizen', type: ApplicationCommandOptionType.Subcommand, options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'User', required: true }, { name: 'reason', type: ApplicationCommandOptionType.String, description: 'Reason', required: true }] }
@@ -173,7 +103,6 @@ client.once('ready', async () => {
     } catch (e) { console.error(e); }
   };
   updateStats(); setInterval(updateStats, 720000);
-
   try { await new REST({ version: '10' }).setToken(TOKEN).put(Routes.applicationCommands(CLIENT_ID), { body: commands }); } catch (e) { console.error(e); }
 });
 
@@ -187,17 +116,14 @@ client.on('messageCreate', async msg => {
   if (nXp >= xpNeeded) {
     nXp -= xpNeeded; nLvl++;
     const embed = new EmbedBuilder().setDescription(`<@${msg.author.id}> is now **Level ${nLvl}**`).setColor('#2b2d31');
-    const chan = msg.guild.channels.cache.get('1519015856837890088');
-    chan ? chan.send({ embeds: [embed] }) : msg.channel.send({ embeds: [embed] });
+    const chan = msg.guild.channels.cache.get('1519015856837890088') || msg.channel;
+    chan.send({ embeds: [embed] });
 
     try {
       const member = await msg.guild.members.fetch(msg.author.id);
       const milestones = [{ lvl: 50, id: '1505615177972846682' }, { lvl: 25, id: '1505615327873073276' }, { lvl: 10, id: '1505614729651949771' }, { lvl: 1, id: '1520015021894144130' }];
       for (const m of milestones) {
-        if (nLvl >= m.lvl) {
-          const r = msg.guild.roles.cache.get(m.id);
-          if (r && !member.roles.cache.has(r.id)) { await member.roles.add(r); break; }
-        }
+        if (nLvl >= m.lvl && !member.roles.cache.has(m.id)) { await member.roles.add(m.id); break; }
       }
     } catch (e) { console.error(e); }
   }
@@ -209,7 +135,7 @@ client.on('messageCreate', async msg => {
 client.on('guildMemberAdd', async m => {
   const chan = m.guild.channels.cache.get('1397011380162531348');
   if (chan) chan.send({ embeds: [new EmbedBuilder().setDescription(`<@${m.id}> has crossed the Aidan wall. Welcome to Aidansville!`).setColor('#2b2d31')] });
-  try { const r = m.guild.roles.cache.get('1397383481465507861'); if (r) await m.roles.add(r); } catch {}
+  try { await m.roles.add('1397383481465507861'); } catch {}
 });
 
 // Reaction Roles Configuration & Event Flow
@@ -219,8 +145,8 @@ async function handleReaction(react, u, add) {
   if (react.partial) { try { await react.fetch(); } catch { return; } }
   const rId = reactionRoles[react.emoji.name]; if (!rId) return;
   try {
-    const member = await react.message.guild.members.fetch(u.id), role = react.message.guild.roles.cache.get(rId);
-    if (role) add ? await member.roles.add(role) : await member.roles.remove(role);
+    const member = await react.message.guild.members.fetch(u.id);
+    add ? await member.roles.add(rId) : await member.roles.remove(rId);
   } catch (e) { console.error(e); }
 }
 client.on('messageReactionAdd', (r, u) => handleReaction(r, u, true));
@@ -229,7 +155,7 @@ client.on('messageReactionRemove', (r, u) => handleReaction(r, u, false));
 // Core Multi-Interaction System Router Module
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
-  const { commandName, user, guildId } = interaction, now = Date.now(), COOLDOWN_AMOUNT = 5000;
+  const { commandName, user } = interaction, now = Date.now(), COOLDOWN_AMOUNT = 5000;
   
   if (!cooldowns.has(commandName)) cooldowns.set(commandName, new Collection());
   const timestamps = cooldowns.get(commandName);
@@ -239,16 +165,13 @@ client.on('interactionCreate', async interaction => {
   }
   timestamps.set(user.id, now); setTimeout(() => timestamps.delete(user.id), COOLDOWN_AMOUNT);
 
-// Mod Only Commands
+  // Mod Only Commands
   if (commandName === 'mod') {
     const sub = interaction.options.getSubcommand();
     const logChannelId = '1396953023426727998';
 
-    // ==================== 1. PURGE SUBCOMMAND ====================
     if (sub === 'purge') {
-      if (!interaction.member.permissions.has('ManageMessages')) {
-        return interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
-      }
+      if (!interaction.member.permissions.has('ManageMessages')) return interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
       const amt = interaction.options.getInteger('amount');
       if (amt < 1 || amt > 100) return interaction.reply({ content: 'Please provide an amount between 1 and 100.', ephemeral: true });
       
@@ -259,88 +182,51 @@ client.on('interactionCreate', async interaction => {
         if (log) {
           log.send({ 
             embeds: [new EmbedBuilder().setTitle('Messages Purged').setColor('#2b2d31').addFields(
-              { name: 'Channel', value: `<#${interaction.channel.id}>`, inline: true }, 
-              { name: 'Mod', value: `<@${interaction.user.id}>`, inline: true }, 
-              { name: 'Deleted Count', value: `\`${del.size}\``, inline: true }
+              { name: 'Channel', value: `<#${interaction.channel.id}>`, inline: true }, { name: 'Mod', value: `<@${interaction.user.id}>`, inline: true }, { name: 'Deleted Count', value: `\`${del.size}\``, inline: true }
             )] 
           });
         }
         return interaction.editReply(`Successfully purged ${del.size} messages.`);
-      } catch { 
-        return interaction.editReply('Failed to purge messages.'); 
-      }
+      } catch { return interaction.editReply('Failed to purge messages.'); }
     }
 
-    // ==================== 2. SLOWMODE SUBCOMMAND ====================
     if (sub === 'slowmode') {
-      if (!interaction.member.permissions.has('ManageChannels')) {
-        return interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
-      }
-
+      if (!interaction.member.permissions.has('ManageChannels')) return interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
       const seconds = interaction.options.getInteger('seconds');
-      if (seconds < 0 || seconds > 21600) {
-        return interaction.reply({ content: 'Please enter a valid time between 0 seconds and 6 hours.', ephemeral: true });
-      }
+      if (seconds < 0 || seconds > 21600) return interaction.reply({ content: 'Please enter a valid time between 0 seconds and 6 hours.', ephemeral: true });
 
       try {
         await interaction.channel.setRateLimitPerUser(seconds);
-        const updateMessage = seconds === 0 
-          ? 'Successfully disabled slowmode.' 
-          : `Successfully set slowmode to ${seconds} seconds.`;
-
         const log = interaction.guild.channels.cache.get(logChannelId);
         if (log) {
           log.send({ 
             embeds: [new EmbedBuilder().setTitle('Channel Slowmode Updated').setColor('#2b2d31').addFields(
-              { name: 'Channel', value: `<#${interaction.channel.id}>`, inline: true },
-              { name: 'Mod', value: `<@${interaction.user.id}>`, inline: true },
-              { name: 'Constraint Parameter', value: `\`${seconds} seconds\``, inline: true }
+              { name: 'Channel', value: `<#${interaction.channel.id}>`, inline: true }, { name: 'Mod', value: `<@${interaction.user.id}>`, inline: true }, { name: 'Constraint Parameter', value: `\`${seconds} seconds\``, inline: true }
             )] 
           });
         }
-        return interaction.reply({ content: updateMessage });
-      } catch (e) {
-        console.error(e);
-        return interaction.reply({ content: 'Failed to update slowmode.', ephemeral: true });
-      }
-    }
-    if (!interaction.member.permissions.has('ModerateMembers')) {
-      return interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
+        return interaction.reply({ content: seconds === 0 ? 'Successfully disabled slowmode.' : `Successfully set slowmode to ${seconds} seconds.` });
+      } catch (e) { console.error(e); return interaction.reply({ content: 'Failed to update slowmode.', ephemeral: true }); }
     }
 
-    const target = interaction.options.getUser('user');
-    const reason = interaction.options.getString('reason');
-    
+    if (!interaction.member.permissions.has('ModerateMembers')) return interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
+    const target = interaction.options.getUser('user'), reason = interaction.options.getString('reason');
     let member; 
-    try { 
-      member = await interaction.guild.members.fetch(target.id); 
-    } catch { 
-      return interaction.reply({ content: 'Could not find that user.', ephemeral: true }); 
-    }
+    try { member = await interaction.guild.members.fetch(target.id); } catch { return interaction.reply({ content: 'Could not find that user.', ephemeral: true }); }
     
     if (target.id === interaction.user.id) return interaction.reply({ content: 'You cannot moderate yourself.', ephemeral: true });
-
-    // Check if the target member has a higher or equal role position than the mod running the command
-    if (member.roles.highest.position >= interaction.member.roles.highest.position) {
-      return interaction.reply({ content: `Cannot ${sub} someone with a role higher than or equal to yours.`, ephemeral: true });
-    }
+    if (member.roles.highest.position >= interaction.member.roles.highest.position) return interaction.reply({ content: `Cannot ${sub} someone with a role higher than or equal to yours.`, ephemeral: true });
 
     await interaction.deferReply({ ephemeral: true });
     let title = '';
 
-    if (sub === 'warn') { 
-      title = 'User Warned'; 
-      try { await target.send(`Warned in **${interaction.guild.name}**\nReason: ${reason}`); } catch {} 
-    }
-    
+    if (sub === 'warn') { title = 'User Warned'; try { await target.send(`Warned in **${interaction.guild.name}**\nReason: ${reason}`); } catch {} }
     if (sub === 'timeout') { 
-      title = 'User Timed Out'; 
-      const d = interaction.options.getInteger('duration'); 
+      title = 'User Timed Out'; const d = interaction.options.getInteger('duration'); 
       if (!member.moderatable) return interaction.editReply('I cannot moderate this user (they might have a higher role than the bot).'); 
       try { await target.send(`Timed out for ${d}m.\nReason: ${reason}`); } catch {} 
       await member.timeout(d * 60 * 1000, reason); 
     }
-    
     if (sub === 'ban') { 
       title = 'User Banned'; 
       if (!member.bannable) return interaction.editReply('I cannot ban this user (they might have a higher role than the bot).'); 
@@ -352,19 +238,14 @@ client.on('interactionCreate', async interaction => {
     if (log) {
       log.send({ 
         embeds: [new EmbedBuilder().setTitle(title).setColor('#2b2d31').addFields(
-          { name: 'Target', value: `<@${target.id}>\nID: \`${target.id}\``, inline: true }, 
-          { name: 'Mod', value: `<@${interaction.user.id}>`, inline: true }, 
-          { name: 'Reason', value: reason }
+          { name: 'Target', value: `<@${target.id}>\nID: \`${target.id}\``, inline: true }, { name: 'Mod', value: `<@${interaction.user.id}>`, inline: true }, { name: 'Reason', value: reason }
         )] 
       });
     }
-    
-    // Custom readable success message using the past tense form of the action
-    const actionPastTense = sub === 'warn' ? 'warned' : sub === 'timeout' ? 'timed out' : 'banned';
-    return interaction.editReply(`Successfully ${actionPastTense} ${target.username}.`);
+    return interaction.editReply(`Successfully ${sub === 'warn' ? 'warned' : sub === 'timeout' ? 'timed out' : 'banned'} ${target.username}.`);
   }
 
-// Commands
+  // Quote Command
   if (commandName === 'quote') {
     await interaction.deferReply();
     try {
@@ -407,9 +288,7 @@ client.on('interactionCreate', async interaction => {
       ctx.fillStyle = '#555555'; ctx.font = 'italic 12px "CustomArial"'; ctx.textAlign = 'right'; ctx.fillText('Aidan Bot', 790, 390);
 
       return interaction.editReply({ files: [new AttachmentBuilder(canvas.toBuffer('image/png'), { name: `quote_${targetMessage.id}.png` })] });
-    } catch { 
-      return interaction.editReply('Invalid layout reference target identifier.'); 
-    }
+    } catch { return interaction.editReply('Invalid layout reference target identifier.'); }
   }
 
   if (commandName === 'level') {
@@ -417,11 +296,47 @@ client.on('interactionCreate', async interaction => {
     const rank = (await pool.query('SELECT user_id FROM users ORDER BY level DESC, xp DESC')).rows.findIndex(p => p.user_id === target.id) + 1 || 'Unranked';
     return interaction.reply({ embeds: [new EmbedBuilder().setAuthor({ name: target.username, iconURL: target.displayAvatarURL() }).addFields({ name: 'Rank', value: `#${rank}`, inline: true }, { name: 'Level', value: `${uData.level}`, inline: true }, { name: 'XP Progress', value: `${uData.xp} / ${reqXp} XP`, inline: true }).setColor('#2b2d31')] });
   }
-  if (commandName === 'leaderboard') {
-    const res = await pool.query('SELECT * FROM users ORDER BY level DESC, xp DESC LIMIT 10');
+
+if (commandName === 'leaderboard') {
+    const [lvlRes, dapsRes] = await Promise.all([
+      pool.query('SELECT * FROM users ORDER BY level DESC, xp DESC LIMIT 10'),
+      pool.query('SELECT * FROM users ORDER BY daps DESC, level DESC LIMIT 10')
+    ]);
+
     const medals = ['🥇', '🥈', '🥉'];
-    let desc = res.rows.map((p, i) => `${i < 3 ? medals[i] : `**${i + 1}**`} <@${p.user_id}> • **Level ${p.level}** • ${p.xp}/${(p.level * 50) + 50} XP`).join('\n');
-    return interaction.reply({ embeds: [new EmbedBuilder().setTitle('Aidansville Level Leaderboard').setDescription(desc || 'No entry items found.').setColor('#2b2d31').setThumbnail(interaction.guild.iconURL())] });
+    
+    const renderDesc = (rows, type) => rows.map((p, i) => {
+      const medalOrNum = i < 3 ? medals[i] : `**${i + 1}**`;
+      return type === 'level' 
+        ? `${medalOrNum} <@${p.user_id}> • **Level ${p.level}** • ${p.xp}/${(p.level * 50) + 50} XP`
+        : `${medalOrNum} <@${p.user_id}> • **${p.daps || 0} Daps** • Level ${p.level}`;
+    }).join('\n') || 'No entry items found.';
+
+    const makeEmbed = (type) => new EmbedBuilder()
+      .setTitle(`Aidansville ${type === 'level' ? 'Level' : 'Daps'} Leaderboard`)
+      .setDescription(renderDesc(type === 'level' ? lvlRes.rows : dapsRes.rows, type))
+      .setColor('#2b2d31')
+      .setThumbnail(interaction.guild.iconURL());
+
+    const getRow = (active) => new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('lb_level').setLabel('Show Levels').setStyle(ButtonStyle.Primary).setDisabled(active === 'level'),
+      new ButtonBuilder().setCustomId('lb_daps').setLabel('Show Daps').setStyle(ButtonStyle.Success).setDisabled(active === 'daps')
+    );
+
+    const reply = await interaction.reply({ embeds: [makeEmbed('level')], components: [getRow('level')], fetchReply: true });
+
+    const collector = reply.createMessageComponentCollector({ filter: i => i.user.id === interaction.user.id, time: 60000 });
+
+    collector.on('collect', async i => {
+      const view = i.customId === 'lb_level' ? 'level' : 'daps';
+      await i.update({ embeds: [makeEmbed(view)], components: [getRow(view)] });
+    });
+
+    collector.on('end', () => {
+
+      interaction.editReply({ components: [] }).catch(() => null);
+    });
+    return;
   }
 
   if (commandName === 'ping') {
@@ -437,184 +352,6 @@ client.on('interactionCreate', async interaction => {
   }
 
   if (commandName === 'say') return interaction.reply({ content: interaction.options.getString('message') });
-
-  if (commandName === 'play') {
-    if (!guildId) return; // 
-
-    const voiceChannel = interaction.member?.voice?.channel;
-    if (!voiceChannel) {
-      return interaction.reply({ content: 'You must join a Voice Channel to play music.', ephemeral: true });
-    }
-
-    if (voiceChannel.id !== MAIN_VOICE_CHANNEL_ID) {
-      return interaction.reply({ content: `Aidan Bot is restricted to joining <#${MAIN_VOICE_CHANNEL_ID}> only.`, ephemeral: true });
-    }
-
-    const queue = getQueue(guildId);
-    const currentActiveSongsCount = queue.songs.length + (queue.currentSong ? 1 : 0);
-    if (currentActiveSongsCount >= 10) {
-      return interaction.reply({ content: 'The playback stream queue is full (**Max 10 tracks**). Wait for tracks to play out.', ephemeral: true });
-    }
-
-    const query = interaction.options.getString('query');
-    const allowedLinkRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be|spotify\.com|soundcloud\.com)\/.+$/i;
-
-    if (!allowedLinkRegex.test(query)) {
-      return interaction.reply({ 
-        content: 'Aidan Bot only accepts direct links from **YouTube**, **Spotify**, or **SoundCloud**. Text searches and other platforms are disabled.', 
-        ephemeral: true 
-      });
-    }
-
-    await interaction.deferReply();
-
-    try {
-      let songUrl = null;
-      let songTitle = 'Unknown Track';
-      let durationSec = 0;
-
-      // Handle YouTube links
-      if (play.yt_validate(query) === 'video') {
-        const info = await play.video_info(query);
-        songUrl = info.video_details.url;
-        songTitle = info.video_details.title || 'Unknown Video';
-        durationSec = info.video_details.durationInSec;
-      } 
-      // Handle Spotify links
-      else if (play.sp_validate(query)) {
-        if (play.is_expired()) {
-          await play.refreshToken();
-        }
-        const spotifyData = await play.spotify(query);
-        if (spotifyData.type === 'track') {
-          const artistName = spotifyData.artists?.[0]?.name || 'Unknown Artist';
-          const searchResult = await play.search(`${spotifyData.name} ${artistName}`, { limit: 1 });
-          if (!searchResult || !searchResult.length) {
-            return interaction.editReply('Could not find a matching YouTube track for this Spotify song.');
-          }
-          songUrl = searchResult[0].url;
-          songTitle = spotifyData.name;
-          durationSec = searchResult[0].durationInSec;
-        } else {
-          return interaction.editReply('Only individual Spotify track links are supported right now (no playlists or albums).');
-        }
-      } 
-      // Handle SoundCloud links
-      else if (play.so_validate(query)) {
-        const soundcloudData = await play.soundcloud(query);
-        songUrl = soundcloudData.url;
-        songTitle = soundcloudData.name;
-        durationSec = Math.floor((soundcloudData.duration || 0) / 1000);
-      } else {
-        return interaction.editReply('Invalid platform link structure or unsupported URL type.');
-      }
-
-      if (durationSec > 900) {
-        return interaction.editReply('This track exceeds the 15-minute runtime threshold limit.');
-      }
-
-      if (!songUrl) return interaction.editReply('Unable to resolve a streamable URL.');
-
-      const song = { title: songTitle, url: songUrl, requestedBy: interaction.user.id };
-
-      if (!queue.connection) {
-        queue.connection = joinVoiceChannel({
-          channelId: voiceChannel.id,
-          guildId: voiceChannel.guild.id,
-          adapterCreator: voiceChannel.guild.voiceAdapterCreator,
-          selfDeaf: false
-        });
-      }
-
-      if (queue.currentSong) {
-        queue.songs.push(song);
-        return interaction.editReply({ embeds: [new EmbedBuilder().setDescription(`Added **${song.title}** to the queue.`).setColor('#2b2d31')] });
-      } else {
-        queue.songs.push(song);
-        playNext(guildId).catch(err => console.error("Asynchronous playNext queue loop error:", err));
-        return interaction.editReply({ embeds: [new EmbedBuilder().setDescription(`Now playing: **${song.title}**`).setColor('#2b2d31')] });
-      }
-
-    } catch (e) {
-      console.error("CRITICAL PLAY ERROR:", e);
-      return interaction.editReply(`Streaming service query resolution failure: ${e.message || e}`);
-    }
-  }
-
-  if (commandName === 'queue') {
-    if (!guildId) return;
-
-    const queue = musicQueues.get(guildId);
-    if (!queue || (!queue.currentSong && queue.songs.length === 0)) {
-      return interaction.reply({ content: 'The playback queue is currently empty.', ephemeral: true });
-    }
-
-    const embed = new EmbedBuilder()
-      .setTitle('Aidansville Playback Queue')
-      .setColor('#2b2d31');
-
-    let desc = `**Now Playing:**\n🎶 ${queue.currentSong?.title || 'Loading Track...'} (Requested by <@${queue.currentSong?.requestedBy || 'Unknown User'}>)\n\n`;
-
-    if (queue.songs.length > 0) {
-      desc += `**Up Next:**\n`;
-      queue.songs.forEach((song, idx) => {
-        desc += `\`${idx + 1}.\` ${song.title} (Requested by <@${song.requestedBy}>)\n`;
-      });
-    } else {
-      desc += '*No upcoming songs in the queue.*';
-    }
-
-    embed.setDescription(desc);
-    return interaction.reply({ embeds: [embed] });
-  }
-
-  if (commandName === 'stop') {
-    if (!guildId) return;
-
-    const queue = musicQueues.get(guildId);
-    const voiceChannel = interaction.member?.voice?.channel;
-
-    if (!queue || !queue.connection) {
-      return interaction.reply({ content: 'I am not currently connected to a Voice Channel.', ephemeral: true });
-    }
-    
-    if (!voiceChannel || voiceChannel.id !== queue.connection.joinConfig.channelId) {
-      return interaction.reply({ content: 'You must be in the bot\'s voice channel to stop playback.', ephemeral: true });
-    }
-
-    if (queue.player) queue.player.stop();
-    if (queue.connection) queue.connection.destroy();
-    musicQueues.delete(guildId);
-
-    return interaction.reply({ embeds: [new EmbedBuilder().setDescription('Playback terminated. Disconnecting from Voice Channel.').setColor('#2b2d31')] });
-  }
-});
-
-client.on('voiceStateUpdate', async (oldState, newState) => {
-  const queue = musicQueues.get(oldState.guild.id);
-  if (!queue || !queue.connection) return;
-
-  const botChannelId = queue.connection.joinConfig.channelId;
-  let channel = oldState.guild.channels.cache.get(botChannelId);
-  
-  if (!channel) {
-    try {
-      channel = await oldState.guild.channels.fetch(botChannelId);
-    } catch (e) {
-      console.error("Failed to fetch voice channel state:", e);
-    }
-  }
-
-  if (channel) {
-    const humanMembers = channel.members.filter(member => !member.user.bot);
-
-    if (humanMembers.size === 0) {
-      if (queue.player) queue.player.stop();
-      if (queue.connection) queue.connection.destroy();
-      musicQueues.delete(oldState.guild.id);
-      console.log(`Leaving empty voice channel: ${channel.name}`);
-    }
-  }
 });
 
 client.login(TOKEN);
