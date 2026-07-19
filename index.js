@@ -239,34 +239,129 @@ client.on('interactionCreate', async interaction => {
   }
   timestamps.set(user.id, now); setTimeout(() => timestamps.delete(user.id), COOLDOWN_AMOUNT);
 
-  // Mod Only Commands
+// Mod Only Commands
   if (commandName === 'mod') {
-    if (!interaction.member.permissions.has('ModerateMembers')) return interaction.reply({ content: 'Lacking standard permission thresholds.', ephemeral: true });
-    const sub = interaction.options.getSubcommand(), target = interaction.options.getUser('user'), reason = interaction.options.getString('reason');
-    let member; try { member = await interaction.guild.members.fetch(target.id); } catch { return interaction.reply({ content: 'Invalid target.', ephemeral: true }); }
+    const sub = interaction.options.getSubcommand();
+    const logChannelId = '1396953023426727998';
+
+    // ==================== 1. PURGE SUBCOMMAND ====================
+    if (sub === 'purge') {
+      if (!interaction.member.permissions.has('ManageMessages')) {
+        return interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
+      }
+      const amt = interaction.options.getInteger('amount');
+      if (amt < 1 || amt > 100) return interaction.reply({ content: 'Please provide an amount between 1 and 100.', ephemeral: true });
+      
+      await interaction.deferReply({ ephemeral: true });
+      try {
+        const del = await interaction.channel.bulkDelete(amt, true);
+        const log = interaction.guild.channels.cache.get(logChannelId);
+        if (log) {
+          log.send({ 
+            embeds: [new EmbedBuilder().setTitle('Messages Purged').setColor('#2b2d31').addFields(
+              { name: 'Channel', value: `<#${interaction.channel.id}>`, inline: true }, 
+              { name: 'Mod', value: `<@${interaction.user.id}>`, inline: true }, 
+              { name: 'Deleted Count', value: `\`${del.size}\``, inline: true }
+            )] 
+          });
+        }
+        return interaction.editReply(`Successfully purged ${del.size} messages.`);
+      } catch { 
+        return interaction.editReply('Failed to purge messages.'); 
+      }
+    }
+
+    // ==================== 2. SLOWMODE SUBCOMMAND ====================
+    if (sub === 'slowmode') {
+      if (!interaction.member.permissions.has('ManageChannels')) {
+        return interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
+      }
+
+      const seconds = interaction.options.getInteger('seconds');
+      if (seconds < 0 || seconds > 21600) {
+        return interaction.reply({ content: 'Please enter a valid time between 0 seconds and 6 hours.', ephemeral: true });
+      }
+
+      try {
+        await interaction.channel.setRateLimitPerUser(seconds);
+        const updateMessage = seconds === 0 
+          ? 'Successfully disabled slowmode.' 
+          : `Successfully set slowmode to ${seconds} seconds.`;
+
+        const log = interaction.guild.channels.cache.get(logChannelId);
+        if (log) {
+          log.send({ 
+            embeds: [new EmbedBuilder().setTitle('Channel Slowmode Updated').setColor('#2b2d31').addFields(
+              { name: 'Channel', value: `<#${interaction.channel.id}>`, inline: true },
+              { name: 'Mod', value: `<@${interaction.user.id}>`, inline: true },
+              { name: 'Constraint Parameter', value: `\`${seconds} seconds\``, inline: true }
+            )] 
+          });
+        }
+        return interaction.reply({ content: updateMessage });
+      } catch (e) {
+        console.error(e);
+        return interaction.reply({ content: 'Failed to update slowmode.', ephemeral: true });
+      }
+    }
+    if (!interaction.member.permissions.has('ModerateMembers')) {
+      return interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
+    }
+
+    const target = interaction.options.getUser('user');
+    const reason = interaction.options.getString('reason');
+    
+    let member; 
+    try { 
+      member = await interaction.guild.members.fetch(target.id); 
+    } catch { 
+      return interaction.reply({ content: 'Could not find that user.', ephemeral: true }); 
+    }
+    
     if (target.id === interaction.user.id) return interaction.reply({ content: 'You cannot moderate yourself.', ephemeral: true });
+
+    // Check if the target member has a higher or equal role position than the mod running the command
+    if (member.roles.highest.position >= interaction.member.roles.highest.position) {
+      return interaction.reply({ content: `Cannot ${sub} someone with a role higher than or equal to yours.`, ephemeral: true });
+    }
 
     await interaction.deferReply({ ephemeral: true });
     let title = '';
-    if (sub === 'warn') { title = 'User Warned'; try { await target.send(`Warned in **${interaction.guild.name}**\nReason: ${reason}`); } catch {} }
-    if (sub === 'timeout') { title = 'User Timed Out'; const d = interaction.options.getInteger('duration'); if (!member.moderatable) return interaction.editReply('Unmoderatable user.'); try { await target.send(`Timed out for ${d}m.\nReason: ${reason}`); } catch {} await member.timeout(d * 60 * 1000, reason); }
-    if (sub === 'ban') { title = 'User Banned'; if (!member.bannable) return interaction.editReply('Unbannable user.'); try { await target.send(`Banned.\nReason: ${reason}`); } catch {} await member.ban({ reason }); }
 
-    const log = interaction.guild.channels.cache.get('1396953023426727998');
-    if (log) log.send({ embeds: [new EmbedBuilder().setTitle(title).setColor('#2b2d31').addFields({ name: 'Target', value: `<@${target.id}>\nID: \`${target.id}\``, inline: true }, { name: 'Mod', value: `<@${interaction.user.id}>`, inline: true }, { name: 'Reason', value: reason })] });
-    return interaction.editReply(`Successfully executed ${sub} action on target player structure.`);
-  }
+    if (sub === 'warn') { 
+      title = 'User Warned'; 
+      try { await target.send(`Warned in **${interaction.guild.name}**\nReason: ${reason}`); } catch {} 
+    }
+    
+    if (sub === 'timeout') { 
+      title = 'User Timed Out'; 
+      const d = interaction.options.getInteger('duration'); 
+      if (!member.moderatable) return interaction.editReply('I cannot moderate this user (they might have a higher role than the bot).'); 
+      try { await target.send(`Timed out for ${d}m.\nReason: ${reason}`); } catch {} 
+      await member.timeout(d * 60 * 1000, reason); 
+    }
+    
+    if (sub === 'ban') { 
+      title = 'User Banned'; 
+      if (!member.bannable) return interaction.editReply('I cannot ban this user (they might have a higher role than the bot).'); 
+      try { await target.send(`Banned from **${interaction.guild.name}**\nReason: ${reason}`); } catch {} 
+      await member.ban({ reason }); 
+    }
 
-  if (commandName === 'purge') {
-    if (!interaction.member.permissions.has('ManageMessages')) return interaction.reply({ content: 'Lacking standard clearance configuration rules.', ephemeral: true });
-    const amt = interaction.options.getInteger('amount'); if (amt < 1 || amt > 100) return interaction.reply({ content: 'Bound range parameter error.', ephemeral: true });
-    await interaction.deferReply({ ephemeral: true });
-    try {
-      const del = await interaction.channel.bulkDelete(amt, true);
-      const log = interaction.guild.channels.cache.get('1396953023426727998');
-      if (log) log.send({ embeds: [new EmbedBuilder().setTitle('Messages Purged').setColor('#2b2d31').addFields({ name: 'Channel', value: `<#${interaction.channel.id}>`, inline: true }, { name: 'Mod', value: `<@${interaction.user.id}>`, inline: true }, { name: 'Deleted Count', value: `\`${del.size}\``, inline: true })] });
-      return interaction.editReply(`Cleared \`${del.size}\` entries.`);
-    } catch { return interaction.editReply('Purge operational runtime failure.'); }
+    const log = interaction.guild.channels.cache.get(logChannelId);
+    if (log) {
+      log.send({ 
+        embeds: [new EmbedBuilder().setTitle(title).setColor('#2b2d31').addFields(
+          { name: 'Target', value: `<@${target.id}>\nID: \`${target.id}\``, inline: true }, 
+          { name: 'Mod', value: `<@${interaction.user.id}>`, inline: true }, 
+          { name: 'Reason', value: reason }
+        )] 
+      });
+    }
+    
+    // Custom readable success message using the past tense form of the action
+    const actionPastTense = sub === 'warn' ? 'warned' : sub === 'timeout' ? 'timed out' : 'banned';
+    return interaction.editReply(`Successfully ${actionPastTense} ${target.username}.`);
   }
 
 // Commands
