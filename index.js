@@ -311,12 +311,6 @@ if (commandName === 'level') {
     
     const rank = (await pool.query('SELECT user_id FROM users ORDER BY level DESC, xp DESC')).rows.findIndex(p => p.user_id === target.id) + 1 || '??';
 
-    // Calculate a text-based progress bar (10 segments total)
-    const totalSegments = 10;
-    const filledSegments = Math.round((uData.xp / reqXp) * totalSegments);
-    const emptySegments = totalSegments - filledSegments;
-    const progressBarText = '🟦'.repeat(Math.max(0, filledSegments)) + '⬛'.repeat(Math.max(0, emptySegments));
-
     const embed = new EmbedBuilder()
       .setAuthor({ name: target.username, iconURL: target.displayAvatarURL({ dynamic: true }) })
       .setDescription(
@@ -324,9 +318,6 @@ if (commandName === 'level') {
         `• **Level:** ${uData.level}\n` +
         `• **Progress:** ${uData.xp} / ${reqXp} XP\n\n` +
         `${progressBarText}`
-      )
-      .setColor('#2b2d31')
-      .setFooter({ text: 'Aidan Bot' });
 
     return interaction.editReply({ embeds: [embed] });
   }
