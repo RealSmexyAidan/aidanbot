@@ -303,7 +303,7 @@ client.on('interactionCreate', async interaction => {
     } catch { return interaction.editReply('Invalid layout reference target identifier.'); }
   }
 
- if (commandName === 'level') {
+if (commandName === 'level') {
     await interaction.deferReply();
     const target = interaction.options.getUser('user') || user;
     const uData = await getUserData(target.id);
@@ -311,39 +311,24 @@ client.on('interactionCreate', async interaction => {
     
     const rank = (await pool.query('SELECT user_id FROM users ORDER BY level DESC, xp DESC')).rows.findIndex(p => p.user_id === target.id) + 1 || '??';
 
-    const canvas = createCanvas(700, 200), ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#1e1f22'; ctx.fillRect(0, 0, 700, 200);
-    ctx.fillStyle = '#2b2d31'; ctx.roundRect(20, 20, 660, 160, 15); ctx.fill();
+    // Calculate a text-based progress bar (10 segments total)
+    const totalSegments = 10;
+    const filledSegments = Math.round((uData.xp / reqXp) * totalSegments);
+    const emptySegments = totalSegments - filledSegments;
+    const progressBarText = '🟦'.repeat(Math.max(0, filledSegments)) + '⬛'.repeat(Math.max(0, emptySegments));
 
-    ctx.save(); ctx.beginPath(); ctx.arc(95, 100, 55, 0, Math.PI * 2); ctx.closePath(); ctx.clip();
-    try { ctx.drawImage(await loadImage(target.displayAvatarURL({ extension: 'png', size: 256 })), 40, 45, 110, 110); } catch {}
-    ctx.restore();
+    const embed = new EmbedBuilder()
+      .setAuthor({ name: target.username, iconURL: target.displayAvatarURL({ dynamic: true }) })
+      .setDescription(
+        `• **Rank:** #${rank}\n` +
+        `• **Level:** ${uData.level}\n` +
+        `• **Progress:** ${uData.xp} / ${reqXp} XP\n\n` +
+        `${progressBarText}`
+      )
+      .setColor('#2b2d31')
+      .setFooter({ text: 'Aidan Bot' });
 
-    ctx.fillStyle = '#ffffff'; ctx.font = 'bold 28px "CustomArial"'; ctx.textAlign = 'left';
-    ctx.fillText(target.username, 180, 75);
-
-    ctx.fillStyle = '#b5bac1'; ctx.font = '20px "CustomArial"';
-    ctx.fillText(`Rank #${rank}`, 180, 115);
-    ctx.textAlign = 'right';
-    ctx.fillText(`Level ${uData.level}`, 650, 75);
-    ctx.fillText(`${uData.xp} / ${reqXp} XP`, 650, 115);
-
-    const progressWidth = 470, barX = 180, barY = 135, barHeight = 20;
-    ctx.fillStyle = '#1e1f22'; ctx.roundRect(barX, barY, progressWidth, barHeight, 10); ctx.fill();
-    
-    const fillPercent = Math.min(uData.xp / reqXp, 1);
-    if (fillPercent > 0) {
-      ctx.fillStyle = '#5865f2';
-      ctx.roundRect(barX, barY, progressWidth * fillPercent, barHeight, 10); ctx.fill();
-    }
-
-    // Identical Watermark positioning adjusted for the 700x200 canvas size
-    ctx.fillStyle = '#555555'; 
-    ctx.font = 'italic 12px "CustomArial"'; 
-    ctx.textAlign = 'right'; 
-    ctx.fillText('Aidan Bot', 690, 190);
-
-    return interaction.editReply({ files: [new AttachmentBuilder(canvas.toBuffer('image/png'), { name: `level_${target.id}.png` })] });
+    return interaction.editReply({ embeds: [embed] });
   }
 
   if (commandName === 'leaderboard') {
