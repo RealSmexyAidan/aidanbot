@@ -258,11 +258,14 @@ client.on('interactionCreate', async interaction => {
   }
 
   // Quote Command
-  if (commandName === 'quote') {
+if (commandName === 'quote') {
     await interaction.deferReply();
     try {
       const targetMessage = await interaction.channel.messages.fetch(interaction.options.getString('message_id'));
       if (!targetMessage.content) return interaction.editReply('Empty payload asset string.');
+
+      // Clean up custom emojis from <:name:id> or <a:name:id> to just :name:
+      const cleanContent = targetMessage.content.replace(/<a?:([a-zA-Z0-9_]+):[0-9]+>/g, ':$1:');
 
       const canvas = createCanvas(800, 400), ctx = canvas.getContext('2d');
       ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, 800, 400);
@@ -289,7 +292,8 @@ client.on('interactionCreate', async interaction => {
         return { lines, fontSize: fSz, lineSpacing: spacing, startY: sY };
       }
 
-      let layout = getQuoteLayout(ctx, targetMessage.content.split(' '), 350, 32);
+      // Swapped targetMessage.content for cleanContent
+      let layout = getQuoteLayout(ctx, cleanContent.split(' '), 350, 32);
       if (layout.lines.length > 14) { layout.lines = layout.lines.slice(0, 14); layout.lines[13] = layout.lines[13].replace(/[\s,.-]+$/, "") + "..."; }
 
       ctx.fillStyle = '#ffffff'; ctx.font = `${layout.fontSize}px "CustomArial"`;
