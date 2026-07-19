@@ -323,7 +323,7 @@ if (commandName === 'level') {
     return interaction.editReply({ embeds: [embed] });
   }
   
-  if (commandName === 'leaderboard') {
+if (commandName === 'leaderboard') {
     const [lvlRes, dapsRes] = await Promise.all([
       pool.query('SELECT * FROM users ORDER BY level DESC, xp DESC LIMIT 10'),
       pool.query('SELECT * FROM users ORDER BY daps DESC, level DESC LIMIT 10')
@@ -335,7 +335,7 @@ if (commandName === 'level') {
       const medalOrNum = i < 3 ? medals[i] : `**${i + 1}**`;
       return type === 'level' 
         ? `${medalOrNum} <@${p.user_id}> • **Level ${p.level}** • ${p.xp}/${(p.level * 50) + 50} XP`
-        : `${medalOrNum} <@${p.user_id}> • **${p.daps || 0} Daps** • Level ${p.level}`;
+        : `${medalOrNum} <@${p.user_id}> • **${p.daps || 0} Daps**`; // Removed level reference here
     }).join('\n') || 'No entry items found.';
 
     const makeEmbed = (type) => new EmbedBuilder()
