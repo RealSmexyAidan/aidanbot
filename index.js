@@ -202,7 +202,7 @@ client.on('interactionCreate', async interaction => {
       } catch { return interaction.editReply('Failed to purge messages.'); }
     }
 
-    if (sub === 'slowmode') {
+   if (sub === 'slowmode') {
       if (!interaction.member.permissions.has('ManageChannels')) return interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
       const seconds = interaction.options.getInteger('seconds');
       if (seconds < 0 || seconds > 21600) return interaction.reply({ content: 'Please enter a valid time between 0 seconds and 6 hours.', ephemeral: true });
@@ -217,7 +217,7 @@ client.on('interactionCreate', async interaction => {
             )] 
           });
         }
-        return interaction.reply({ content: seconds === 0 ? 'Successfully disabled slowmode.' : `Successfully set slowmode to ${seconds} seconds.` });
+        return interaction.reply({ content: seconds === 0 ? 'Successfully disabled slowmode.' : `Successfully set slowmode to ${seconds} seconds.`, ephemeral: true });
       } catch (e) { console.error(e); return interaction.reply({ content: 'Failed to update slowmode.', ephemeral: true }); }
     }
 
