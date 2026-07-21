@@ -29,18 +29,11 @@
 // ██║  ██║██║██████╔╝██║  ██║██║ ╚████║    ██████╔╝╚██████╔╝   ██║   
 // ╚═╝  ╚═╝╚═╝╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═══╝    ╚═════╝  ╚═════╝   ╚═╝   
 //
-//                © 2026 Aidan Industries. All rights reserved.
+//                © 2026 AIDAN Industries. All rights reserved.
 //
 // ==============================================================================
 
-const { createCanvas, loadImage, GlobalFonts } = require('@napi-rs/canvas');
-const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ApplicationCommandOptionType, Collection, ActivityType, Partials, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
-const play = require('play-dl');
-const express = require('express');
-const { Pool } = require('pg');
-const path = require('path');
-
+const { createCanvas, loadImage, GlobalFonts } = require('@napi-rs/canvas'), { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ApplicationCommandOptionType, Collection, ActivityType, Partials, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js'), express = require('express'), { Pool } = require('pg'), path = require('path');
 GlobalFonts.registerFromPath(path.join(__dirname, 'ARIAL.TTF'), 'CustomArial');
 
 const app = express(), PORT = process.env.PORT || 3000;
@@ -48,12 +41,7 @@ app.get('/', (req, res) => res.send('Aidan Bot Status, Commands, Levels, and Sta
 app.listen(PORT);
 
 let TOKEN = process.env.TOKEN, CLIENT_ID = process.env.CLIENT_ID, DATABASE_URL = process.env.DATABASE_URL;
-if (!TOKEN || !CLIENT_ID || !DATABASE_URL) { 
-  try { 
-    const config = require('./config.json'); 
-    TOKEN ||= config.TOKEN; CLIENT_ID ||= config.CLIENT_ID; DATABASE_URL ||= config.DATABASE_URL; 
-  } catch { console.log("ℹ️ Running via environment variables."); } 
-}
+if (!TOKEN || !CLIENT_ID || !DATABASE_URL) { try { const config = require('./config.json'); TOKEN ||= config.TOKEN; CLIENT_ID ||= config.CLIENT_ID; DATABASE_URL ||= config.DATABASE_URL; } catch { console.log("ℹ️ Running via environment variables."); } }
 
 const pool = new Pool({ connectionString: DATABASE_URL, ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false });
 const initDb = () => pool.query('CREATE TABLE IF NOT EXISTS users (user_id VARCHAR(20) PRIMARY KEY, xp INTEGER DEFAULT 0, level INTEGER DEFAULT 0, daps INTEGER DEFAULT 0, dap_streak INTEGER DEFAULT 0, last_dap_time BIGINT DEFAULT 0)');
@@ -63,13 +51,8 @@ async function getUserData(userId) {
   return res.rows[0] || (await pool.query('INSERT INTO users (user_id, xp, level, daps, dap_streak, last_dap_time) VALUES ($1, 0, 0, 0, 0, 0) RETURNING *', [userId])).rows[0];
 }
 
-const client = new Client({ 
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.GuildVoiceStates], 
-  partials: [Partials.Message, Partials.Channel, Partials.Reaction] 
-});
-
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMessageReactions], partials: [Partials.Message, Partials.Channel, Partials.Reaction] });
 const cooldowns = new Collection(), xpCooldowns = new Set(), statuses = ["Made by Aidan", "Watching Aidansville"];
-const queues = new Map();
 
 const commands = [
   { name: 'ping', description: 'Checks the latency of Aidan Bot', integration_types: [0, 1], contexts: [0, 1, 2] },
@@ -80,10 +63,6 @@ const commands = [
   { name: 'quote', description: 'Quote a message', options: [{ name: 'message_id', type: ApplicationCommandOptionType.String, description: 'The message ID', required: true }], integration_types: [0, 1], contexts: [0, 1, 2] },
   { name: 'userinfo', description: 'Displays information about a user', options: [{ name: 'target', type: ApplicationCommandOptionType.User, description: 'The user to examine', required: false }], integration_types: [0], contexts: [0] },
   { name: 'serverinfo', description: 'Displays information about this server', integration_types: [0], contexts: [0] },
-  { name: 'play', description: 'Play music from YouTube, Spotify, or SoundCloud', options: [{ name: 'url', type: ApplicationCommandOptionType.String, description: 'Direct URL (YouTube, Spotify, SoundCloud)', required: true }], integration_types: [0], contexts: [0] },
-  { name: 'nowplaying', description: 'Show the current track and queue', integration_types: [0], contexts: [0] },
-  { name: 'skip', description: 'Skip the current track', integration_types: [0], contexts: [0] },
-  { name: 'stop', description: 'Stop playback and disconnect the bot', integration_types: [0], contexts: [0] },
   { name: 'mod', description: 'Staff moderation tools', integration_types: [0], contexts: [0], options: [
       { name: 'purge', description: 'Delete messages', type: ApplicationCommandOptionType.Subcommand, options: [{ name: 'amount', type: ApplicationCommandOptionType.Integer, description: 'Amount (1-100)', required: true }] },
       { name: 'slowmode', description: 'Set message cooldowns in channels', type: ApplicationCommandOptionType.Subcommand, options: [{ name: 'seconds', type: ApplicationCommandOptionType.Integer, description: 'Cooldown in seconds (0 to disable)', required: true }] },
@@ -92,38 +71,6 @@ const commands = [
       { name: 'ban', description: 'Ban a citizen', type: ApplicationCommandOptionType.Subcommand, options: [{ name: 'user', type: ApplicationCommandOptionType.User, description: 'User', required: true }, { name: 'reason', type: ApplicationCommandOptionType.String, description: 'Reason', required: true }] }
   ]}
 ];
-
-async function processQueue(guildId, interaction) {
-  const queue = queues.get(guildId);
-  if (!queue || queue.songs.length === 0) {
-    if (queue?.connection) queue.connection.destroy();
-    queues.delete(guildId);
-    return;
-  }
-
-  const song = queue.songs[0];
-  try {
-    let streamUrl = song.streamUrl || song.url;
-    if (play.sp_validate(song.url)) {
-      const searched = await play.search(song.title, { limit: 1 });
-      if (searched.length > 0) streamUrl = searched[0].url;
-    }
-
-    const stream = await play.stream(streamUrl);
-    const resource = createAudioResource(stream.stream, { inputType: stream.type });
-    queue.player.play(resource);
-    queue.connection.subscribe(queue.player);
-    queue.playing = true;
-
-    if (interaction && interaction.channel) {
-      interaction.channel.send({ embeds: [new EmbedBuilder().setTitle('🎶 Now Playing').setDescription(`[${song.title}](${song.url})\nDuration: \`${song.duration}\``).setColor('#2b2d31')] });
-    }
-  } catch (e) {
-    console.error('Error playing track:', e);
-    queue.songs.shift();
-    processQueue(guildId, null);
-  }
-}
 
 client.once('ready', async () => {
   console.log(`🤖 Logged in as ${client.user.tag}!`);
@@ -327,86 +274,6 @@ client.on('interactionCreate', async interaction => {
   if (commandName === 'serverinfo') {
     const { guild } = interaction;
     return interaction.reply({ embeds: [new EmbedBuilder().setTitle(guild.name).setThumbnail(guild.iconURL({ dynamic: true })).setColor('#2b2d31').addFields({ name: 'Server Owner', value: `<@${guild.ownerId}>`, inline: true }, { name: 'Total Citizens', value: `**${guild.memberCount}**`, inline: true }, { name: 'Boosts', value: `**${guild.premiumSubscriptionCount || 0}** Boosts`, inline: true }, { name: 'Created On', value: `<t:${Math.floor(guild.createdTimestamp / 1000)}:F>`, inline: false })] });
-  }
-
-  if (commandName === 'play') {
-    await interaction.deferReply();
-    const voiceChannel = interaction.member.voice.channel;
-    if (!voiceChannel) return interaction.editReply('You must be in a voice channel to play music!');
-
-    const url = interaction.options.getString('url');
-    if (!play.yt_validate(url) && !play.sp_validate(url) && !play.so_validate(url)) {
-      return interaction.editReply('Please provide a valid YouTube, Spotify, or SoundCloud URL.');
-    }
-
-    try {
-      let songInfo = { url, title: 'Requested Track', durationSec: 0, duration: 'Unknown' };
-
-      if (play.yt_validate(url) === 'video') {
-        const info = await play.video_info(url);
-        songInfo.title = info.video_details.title;
-        songInfo.durationSec = info.video_details.durationInSec;
-        songInfo.duration = info.video_details.durationRaw;
-      } else if (play.sp_validate(url) === 'track') {
-        const spData = await play.spotify(url);
-        songInfo.title = `${spData.name} - ${spData.artists.map(a => a.name).join(', ')}`;
-        songInfo.durationSec = Math.floor(spData.durationInMs / 1000);
-        songInfo.duration = `${Math.floor(songInfo.durationSec / 60)}:${(songInfo.durationSec % 60).toString().padStart(2, '0')}`;
-      } else if (play.so_validate(url) === 'track') {
-        const soData = await play.soundcloud(url);
-        songInfo.title = soData.name;
-        songInfo.durationSec = Math.floor(soData.durationInMs / 1000);
-        songInfo.duration = `${Math.floor(songInfo.durationSec / 60)}:${(songInfo.durationSec % 60).toString().padStart(2, '0')}`;
-      }
-
-      if (songInfo.durationSec > 900) return interaction.editReply('Tracks longer than 15 minutes cannot be played.');
-
-      let queue = queues.get(interaction.guildId);
-      if (!queue) {
-        const connection = joinVoiceChannel({ channelId: voiceChannel.id, guildId: interaction.guildId, adapterCreator: interaction.guild.voiceAdapterCreator });
-        const player = createAudioPlayer();
-        queue = { voiceChannel, connection, player, songs: [], playing: false };
-        queues.set(interaction.guildId, queue);
-
-        player.on(AudioPlayerStatus.Idle, () => { queue.songs.shift(); processQueue(interaction.guildId, null); });
-        player.on('error', error => { console.error(`Audio player error: ${error.message}`); queue.songs.shift(); processQueue(interaction.guildId, null); });
-      }
-
-      queue.songs.push(songInfo);
-      if (!queue.playing) {
-        await interaction.editReply(`Added **${songInfo.title}** to the queue!`);
-        processQueue(interaction.guildId, interaction);
-      } else {
-        return interaction.editReply(`Queued: **${songInfo.title}** (Position #${queue.songs.length})`);
-      }
-    } catch (e) {
-      console.error(e);
-      return interaction.editReply('Failed to process the provided music link.');
-    }
-  }
-
-  if (commandName === 'nowplaying') {
-    const queue = queues.get(interaction.guildId);
-    if (!queue || queue.songs.length === 0) return interaction.reply({ content: 'Nothing is currently playing.', ephemeral: true });
-    const current = queue.songs[0], nextTracks = queue.songs.slice(1, 6).map((s, i) => `**${i + 1}.** [${s.title}](${s.url})`).join('\n') || 'No upcoming tracks.';
-    return interaction.reply({ embeds: [new EmbedBuilder().setTitle('🎵 Queue Status').setColor('#2b2d31').addFields({ name: 'Now Playing', value: `[${current.title}](${current.url})` }, { name: 'Up Next', value: nextTracks })] });
-  }
-
-  if (commandName === 'skip') {
-    const queue = queues.get(interaction.guildId);
-    if (!queue || !queue.playing) return interaction.reply({ content: 'There is no track playing to skip.', ephemeral: true });
-    queue.player.stop();
-    return interaction.reply('Skipped the current track!');
-  }
-
-  if (commandName === 'stop') {
-    const queue = queues.get(interaction.guildId);
-    if (!queue) return interaction.reply({ content: 'The bot is not in a voice channel.', ephemeral: true });
-    queue.songs = [];
-    queue.player.stop();
-    if (queue.connection) queue.connection.destroy();
-    queues.delete(interaction.guildId);
-    return interaction.reply('Stopped playing and left the voice channel. :(');
   }
 
   if (commandName === 'say') return interaction.reply({ content: interaction.options.getString('message') });
