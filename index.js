@@ -33,26 +33,44 @@
 //
 // ==============================================================================
 
+// 1. Imports
 const { createCanvas, loadImage, GlobalFonts } = require('@napi-rs/canvas');
 const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ApplicationCommandOptionType, Collection, ActivityType, Partials, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
 const play = require('play-dl');
-const express = require('express');
 const { Pool } = require('pg');
 const path = require('path');
+const express = require('express');
 
+// 2. HTTP Keep-Alive Web Server (For Render)
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get('/', (req, res) => {
+  res.send('Aidan Bot Status, Commands, Levels, and Stats are Online!');
+});
+
+app.listen(PORT, () => {
+  console.log(`🌐 HTTP server listening on port ${PORT}`);
+});
+
+// 3. Custom Fonts
 GlobalFonts.registerFromPath(path.join(__dirname, 'ARIAL.TTF'), 'CustomArial');
 
-const app = express(), PORT = process.env.PORT || 3000;
-app.get('/', (req, res) => res.send('Aidan Bot Status, Commands, Levels, and Stats are Online!'));
-app.listen(PORT);
+// 4. Environment Variables
+let TOKEN = process.env.TOKEN;
+let CLIENT_ID = process.env.CLIENT_ID;
+let DATABASE_URL = process.env.DATABASE_URL;
 
-let TOKEN = process.env.TOKEN, CLIENT_ID = process.env.CLIENT_ID, DATABASE_URL = process.env.DATABASE_URL;
 if (!TOKEN || !CLIENT_ID || !DATABASE_URL) { 
   try { 
     const config = require('./config.json'); 
-    TOKEN ||= config.TOKEN; CLIENT_ID ||= config.CLIENT_ID; DATABASE_URL ||= config.DATABASE_URL; 
-  } catch { console.log("ℹ️ Running via environment variables."); } 
+    TOKEN ||= config.TOKEN; 
+    CLIENT_ID ||= config.CLIENT_ID; 
+    DATABASE_URL ||= config.DATABASE_URL; 
+  } catch { 
+    console.log("ℹ️ Running via environment variables."); 
+  } 
 }
 
 const pool = new Pool({ connectionString: DATABASE_URL, ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false });
